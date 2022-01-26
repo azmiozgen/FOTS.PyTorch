@@ -4,8 +4,6 @@ import logging
 import os
 import pathlib
 
-from FOTS.data_loader import SynthTextDataLoaderFactory
-from FOTS.data_loader import OCRDataLoaderFactory
 from FOTS.data_loader import ICDAR
 from FOTS.logger import Logger
 from FOTS.model.model import *
@@ -21,6 +19,7 @@ def main(config, resume):
     train_logger = Logger()
 
     if config['data_loader']['dataset'] == 'icdar2015':
+        from FOTS.data_loader import OCRDataLoaderFactory
         # ICDAR 2015
         data_root = pathlib.Path(config['data_loader']['data_dir'])
         ICDARDataset2015 = ICDAR(data_root, year='2015')
@@ -28,7 +27,13 @@ def main(config, resume):
         train = data_loader.train()
         val = data_loader.val()
     elif config['data_loader']['dataset'] == 'synth800k':
+        from FOTS.data_loader import SynthTextDataLoaderFactory
         data_loader = SynthTextDataLoaderFactory(config)
+        train = data_loader.train()
+        val = data_loader.val()
+    elif config['data_loader']['dataset'] == 'json':
+        from FOTS.data_loader import JSONDataLoaderFactory
+        data_loader = JSONDataLoaderFactory(config)
         train = data_loader.train()
         val = data_loader.val()
 

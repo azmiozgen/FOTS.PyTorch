@@ -1,9 +1,21 @@
+from lib2to3.pytree import Base
 import torch.utils.data as torchdata
 
 from ..base import BaseDataLoader
 from .dataset import SynthTextDataset
 from .datautils import collate_fn
 
+
+class JSONDataLoaderFactory(BaseDataLoader):
+
+    def __init__(self, config):
+        super(JSONDataLoaderFactory, self).__init__(config)
+
+    def train(self):
+        pass
+
+    def val(self):
+        pass
 
 class SynthTextDataLoaderFactory(BaseDataLoader):
 

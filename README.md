@@ -31,10 +31,11 @@ conv layer in CRNN are all the same?
 
 ## Requirements
 
-1. build tools
-
+1. 
    ```
-   ./build.sh
+   conda create --name fots --file spec-file.txt
+   conda activate fots
+   pip install pretrainedmodels
    ```
 
 2. prepare ICDAR Dataset

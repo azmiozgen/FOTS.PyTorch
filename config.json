@@ -1,9 +1,9 @@
 {
     "name": "FOTS",
     "cuda": true,
-    "gpus": [0, 1],
+    "gpus": [0],
     "data_loader": {
-        "dataset":"synth800k",
+        "dataset":"json",
         "data_dir": "/home/luning/Dev/data/OCR/Recognition/Train/SynthText/",
         "batch_size": 24,
         "shuffle": true,
