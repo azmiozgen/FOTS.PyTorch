@@ -1,12 +1,12 @@
-import os
-import torch
-import glob as gb
-import numpy as np
-import cv2
 import csv
+import glob as gb
+import json
+import os
 
+import cv2
+import numpy as np
 from shapely.geometry import Polygon
-
+import torch
 
 
 def get_images(root):
@@ -21,8 +21,7 @@ def get_images(root):
         name.append(files[i].split('/')[-1])
     return files, name
 
-
-def load_annoataion(p):
+def load_annotation(p):
     '''
     load annotation from the text file
     :param p:
@@ -47,7 +46,6 @@ def load_annoataion(p):
                 text_tags.append(False)
         return np.array(text_polys, dtype = np.float32), np.array(text_tags, dtype = np.bool)
 
-
 def polygon_area(poly):
     '''
     compute area of a polygon
@@ -61,7 +59,6 @@ def polygon_area(poly):
         (poly[0][0] - poly[3][0]) * (poly[0][1] + poly[3][1])
     ]
     return np.sum(edge) / 2.
-
 
 def check_and_validate_polys(polys, tags, xxx_todo_changeme):
     '''
@@ -91,7 +88,6 @@ def check_and_validate_polys(polys, tags, xxx_todo_changeme):
         validated_polys.append(poly)
         validated_tags.append(tag)
     return np.array(validated_polys), np.array(validated_tags)
-
 
 def crop_area(im, polys, tags, crop_background = False, max_tries = 50):
     '''
@@ -156,7 +152,6 @@ def crop_area(im, polys, tags, crop_background = False, max_tries = 50):
         return im, polys, tags, selected_polys
 
     return im, polys, tags, np.array(len(polys))
-
 
 def shrink_poly(poly, r):
     '''
@@ -224,11 +219,9 @@ def shrink_poly(poly, r):
         poly[2][1] -= R * r[2] * np.sin(theta)
     return poly
 
-
 def point_dist_to_line(p1, p2, p3):
     # compute the distance from p3 to p1-p2
     return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
-
 
 def fit_line(p1, p2):
     # fit a line ax+by+c = 0
@@ -237,7 +230,6 @@ def fit_line(p1, p2):
     else:
         [k, b] = np.polyfit(p1, p2, deg = 1)
         return [k, -1., b]
-
 
 def line_cross_point(line1, line2):
     # line1 0= ax+by+c, compute the cross point of line1 and line2
@@ -260,7 +252,6 @@ def line_cross_point(line1, line2):
         y = k1 * x + b1
     return np.array([x, y], dtype = np.float32)
 
-
 def line_verticle(line, point):
     # get the verticle line from line across point
     if line[1] == 0:
@@ -271,7 +262,6 @@ def line_verticle(line, point):
         else:
             verticle = [-1. / line[0], -1, point[1] - (-1 / line[0] * point[0])]
     return verticle
-
 
 def rectangle_from_parallelogram(poly):
     '''
@@ -330,7 +320,6 @@ def rectangle_from_parallelogram(poly):
             new_p2 = line_cross_point(p1p2, p1p2_verticle)
             return np.array([new_p0, p1, new_p2, p3], dtype = np.float32)
 
-
 def sort_rectangle(poly):
     # sort the four coordinates of the polygon, points in poly should be sorted clockwise
     # First find the lowest point
@@ -365,7 +354,6 @@ def sort_rectangle(poly):
             p1_index = (p3_index + 2) % 4
             p2_index = (p3_index + 3) % 4
             return poly[[p0_index, p1_index, p2_index, p3_index]], angle
-
 
 def restore_rectangle_rbox(origin, geometry):
     d = geometry[:, :4]
@@ -438,10 +426,8 @@ def restore_rectangle_rbox(origin, geometry):
         new_p_1 = np.zeros((0, 4, 2))
     return np.concatenate([new_p_0, new_p_1])
 
-
 def restore_rectangle(origin, geometry):
     return restore_rectangle_rbox(origin, geometry)
-
 
 def generate_rbox(im_size, polys, tags):
     h, w = im_size
@@ -566,7 +552,6 @@ def generate_rbox(im_size, polys, tags):
             geo_map[y, x, 4] = rotate_angle
     return score_map, geo_map, training_mask, rectanges
 
-
 def image_label(txt_root, image_list, img_name, index,
                 input_size = 512, random_scale = np.array([0.5, 1, 2.0, 3.0]),
                 background_ratio = 3. / 8):
@@ -587,7 +572,7 @@ def image_label(txt_root, image_list, img_name, index,
         # if not os.path.exists(txt_fn):
         #     pass
 
-        text_polys, text_tags = load_annoataion(txt_fn) # text_polys: n * 4 * 2
+        text_polys, text_tags = load_annotation(txt_fn) # text_polys: n * 4 * 2
         text_polys, text_tags = check_and_validate_polys(text_polys, text_tags, (h, w))
         # if text_polys.shape[0] == 0:
         #     continue
@@ -645,39 +630,10 @@ def image_label(txt_root, image_list, img_name, index,
         training_masks = training_mask[::4, ::4, np.newaxis].astype(np.float32)
 
     except Exception as e:
+        print(e)
         images, score_maps, geo_maps, training_masks = None, None, None, None
 
     return images, score_maps, geo_maps, training_masks
-
-
-# def collate_fn(batch):
-#     img, score_map, geo_map, training_mask = zip(*batch)
-#     bs = len(score_map)
-#     images = []
-#     score_maps = []
-#     geo_maps = []
-#     training_masks = []
-#     for i in range(bs):
-#         if img[i] is not None:
-#             a = torch.from_numpy(img[i])
-#             a = a.permute(2, 0, 1)
-#             images.append(a)
-#             b = torch.from_numpy(score_map[i])
-#             b = b.permute(2, 0, 1)
-#             score_maps.append(b)
-#             c = torch.from_numpy(geo_map[i])
-#             c = c.permute(2, 0, 1)
-#             geo_maps.append(c)
-#             d = torch.from_numpy(training_mask[i])
-#             d = d.permute(2, 0, 1)
-#             training_masks.append(d)
-#     images = torch.stack(images, 0)
-#     score_maps = torch.stack(score_maps, 0)
-#     geo_maps = torch.stack(geo_maps, 0)
-#     training_masks = torch.stack(training_masks, 0)
-#
-#     return images, score_maps, geo_maps, training_masks
-
 
 def collate_fn(batch):
     imagePaths, img, score_map, geo_map, training_mask, transcripts, boxes = zip(*batch)

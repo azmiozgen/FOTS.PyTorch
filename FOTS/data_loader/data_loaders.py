@@ -1,21 +1,38 @@
+import os
+
 from lib2to3.pytree import Base
 import torch.utils.data as torchdata
 
 from ..base import BaseDataLoader
-from .dataset import SynthTextDataset
+from .dataset import PriceTagDataset, SynthTextDataset
 from .datautils import collate_fn
 
 
-class JSONDataLoaderFactory(BaseDataLoader):
+class PriceTagDataLoaderFactory(BaseDataLoader):
 
     def __init__(self, config):
-        super(JSONDataLoaderFactory, self).__init__(config)
+        super(PriceTagDataLoaderFactory, self).__init__(config)
+        data_root = self.config['data_loader']['data_dir']
+        train_data_root = os.path.join(data_root, 'train')
+        val_data_root = os.path.join(data_root, 'val')
+        self.train_dataset = PriceTagDataset(train_data_root)
+        self.val_dataset = PriceTagDataset(val_data_root)
+        self.workers = self.config['data_loader']['workers']
 
     def train(self):
-        pass
+        # train_loader = torchdata.DataLoader(self.train_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
+        #                                    shuffle=self.shuffle, collate_fn=collate_fn)
+        train_loader = torchdata.DataLoader(self.train_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
+                                           shuffle=self.shuffle)
+        return train_loader
 
     def val(self):
-        pass
+        shuffle = self.config['validation']['shuffle']
+        # val_loader = torchdata.DataLoader(self.val_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
+        #                                  shuffle=shuffle, collate_fn=collate_fn)
+        val_loader = torchdata.DataLoader(self.val_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
+                                         shuffle=shuffle)
+        return val_loader
 
 class SynthTextDataLoaderFactory(BaseDataLoader):
 

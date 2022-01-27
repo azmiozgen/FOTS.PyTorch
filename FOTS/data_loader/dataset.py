@@ -1,46 +1,116 @@
-from torch.utils.data import Dataset
-from .datautils import *
-import scipy.io as sio
-import logging
-import numpy as np
+import glob
 from itertools import compress
+import logging
 import pathlib
 
-logger = logging.getLogger(__name__)
+from .datautils import *
+import numpy as np
+from PIL import Image, ImageDraw
+import scipy.io as sio
+from torch.utils.data import Dataset
 
-class JSONDataset(Dataset):
+# logger = logging.getLogger(__name__)
 
-    def __init__(self, img_root, txt_root):
-        self.image_list, self.img_name = get_images(img_root)
-        self.txt_root = txt_root
+class PriceTagDataset(Dataset):
+    def __init__(self, data_root, image_ext='jpg', json_ext='json'):
+        images_dir = os.path.join(data_root, 'images')
+        annotations_dir = os.path.join(data_root, 'annotations')
+        self.image_files = sorted(glob.glob(os.path.join(images_dir, '*.' + image_ext)))
+        self.annotation_files = sorted(glob.glob(os.path.join(annotations_dir, '*.' + json_ext)))
+        self.image_filenames = list(map(lambda x: os.path.basename(x), self.image_files))
+        self.bboxes, self.transcriptions = [], []
+        for ann_file in self.annotation_files:
+            bbox, transcription = self._load_annotation(ann_file)
+            self.bboxes.append(bbox)
+            self.transcriptions.append(transcription)
+        self.visualization_dir = os.path.join(data_root, 'visualization')
+        os.makedirs(self.visualization_dir, exist_ok=True)
 
-    def __getitem__(self, index):
-        img, score_map, geo_map, training_mask = image_label(self.txt_root,
-                                                             self.image_list, self.img_name, index,
-                                                             input_size = 512,
-                                                             random_scale = np.array([0.5, 1, 2.0, 3.0]),
-                                                             background_ratio = 3. / 8)
-        return img, score_map, geo_map, training_mask
+    def _load_annotation(self, ann_file, keys=['price', 'price_cent'],
+                bbox_name='bbox', content_name='content', delimiter=','):
+        bbox = []
+        transcription = ''
+
+        if not os.path.isfile(ann_file):
+            return bbox, transcription
+
+        with open(ann_file, 'r') as f:
+            j = json.load(f)
+
+        bbox = [1.0, 1.0, 0.0, 0.0]
+        for key in keys:
+            _bbox = j[key][bbox_name]
+            if key == 'price_cent':
+                transcription += delimiter  ## Put delimiter between keys
+            if len(_bbox) > 0:
+                _x0, _y0, _x1, _y1 = _bbox
+                bbox = [min(_x0, bbox[0]), min(_y0, bbox[1]), max(_x1, bbox[2]), max(_y1, bbox[3])]
+                content = j[key][content_name]
+                if content == '':
+                    transcription += '#'
+                else:
+                    transcription += content
+            else:
+                transcription += '#'
+
+        _x0, _y0, _x1, _y1 = bbox
+        if _x0 > _x1:
+            _x0, _x1 = _x1, _x0
+        if _y0 > _y1:
+            _y0, _y1 = _y1, _y0
+        _x0, _y0, _x1, _y1 = max(0, _x0), max(0, _y0), max(0, _x1), max(0, _y1)
+        _x0, _y0, _x1, _y1 = min(1, _x0), min(1, _y0), min(1, _x1), min(1, _y1)
+        x1, y1, x2, y2, x3, y3, x4, y4 = _x0, _y0, _x1, _y0, _x1, _y1, _x0, _y1
+        bbox = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+
+        return bbox, transcription
+
+    def __getitem__(self, index, visualize=True):
+        '''
+        :param: index
+        :return:
+            image_file: path of image file
+            bbox: bounding boxe of word
+            transcription: transcription of word
+        '''
+        image_file = self.image_files[index]
+        # image_filename = self.image_filenames[index]
+        bbox = self.bboxes[index]
+        transcription = self.transcriptions[index]
+
+        if visualize:
+            self.visualize(image_file, bbox, transcription)
+
+        return torch.tensor(np.random.rand(7))
+
+        # try:
+        #     return self.__transform((image_file, bbox, transcription))
+        # except:
+        #     return self.__getitem__(torch.tensor(np.random.randint(0, len(self))))
 
     def __len__(self):
-        return len(self.image_list)
+        return len(self.image_files)
 
-class MyDataset(Dataset):
+    def __transform(self, gt, input_size=512, random_scale=np.array([0.5, 1, 2.0, 3.0]),
+                        background_ratio=3. / 8):
+        image_file, bbox, transcription = gt
+        images, score_maps, geo_maps, training_masks, transcriptions, rectangles = None, None, None, None, None, None
+        return image_file, images, score_maps, geo_maps, training_masks, transcriptions, rectangles
 
-    def __init__(self, img_root, txt_root):
-        self.image_list, self.img_name = get_images(img_root)
-        self.txt_root = txt_root
-
-    def __getitem__(self, index):
-        img, score_map, geo_map, training_mask = image_label(self.txt_root,
-                                                             self.image_list, self.img_name, index,
-                                                             input_size = 512,
-                                                             random_scale = np.array([0.5, 1, 2.0, 3.0]),
-                                                             background_ratio = 3. / 8)
-        return img, score_map, geo_map, training_mask
-
-    def __len__(self):
-        return len(self.image_list)
+    def visualize(self, image_file, bbox, transcription):
+        bbox = np.array(bbox)
+        image = Image.open(image_file)
+        w, h = image.size
+        bbox *= np.array([w, h])
+        bbox = bbox.astype(np.int32)
+        image_draw = ImageDraw.Draw(image)
+        x1, y1 = bbox[0]
+        x2, y2 = bbox[1]
+        x3, y3 = bbox[2]
+        x4, y4 = bbox[3]
+        image_draw.polygon([(x1, y1), (x2, y2), (x3, y3), (x4, y4)], outline='red')
+        image_draw.text((x1, y1), transcription, fill='red')
+        image.save(os.path.join(self.visualization_dir, os.path.basename(image_file)))
 
 class ICDAR(Dataset):
 
@@ -256,7 +326,7 @@ class SynthTextDataset(Dataset):
                         background_ratio = 3. / 8):
         '''
 
-        :param gt: iamge path (str), wordBBoxes (2 * 4 * num_words), transcripts (multiline)
+        :param gt: image path (str), wordBBoxes (2 * 4 * num_words), transcripts (multiline)
 
         :return:
         '''

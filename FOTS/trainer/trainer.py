@@ -58,7 +58,7 @@ class Trainer(BaseTrainer):
         total_metrics = np.zeros(3) # precious, recall, hmean
         for batch_idx, gt in enumerate(self.data_loader):
             try:
-                imagePaths, img, score_map, geo_map, training_mask, transcripts, boxes, mapping= gt
+                imagePaths, img, score_map, geo_map, training_mask, transcripts, boxes, mapping = gt
                 img, score_map, geo_map, training_mask = self._to_tensor(img, score_map, geo_map, training_mask)
 
                 # import cv2
@@ -84,7 +84,6 @@ class Trainer(BaseTrainer):
                 loss = iou_loss + cls_loss + reg_loss
                 loss.backward()
                 self.optimizer.step()
-                
 
                 total_loss += loss.item()
                 pred_transcripts = []
@@ -115,7 +114,7 @@ class Trainer(BaseTrainer):
 
         log = {
             'loss': total_loss / len(self.data_loader),
-            'precious': total_metrics[0] / len(self.data_loader),
+            'precision': total_metrics[0] / len(self.data_loader),
             'recall': total_metrics[1] / len(self.data_loader),
             'hmean': total_metrics[2] / len(self.data_loader)
         }
@@ -168,7 +167,7 @@ class Trainer(BaseTrainer):
                     raise
 
         return {
-            'val_precious': total_val_metrics[0] / len(self.valid_data_loader),
+            'val_precision': total_val_metrics[0] / len(self.valid_data_loader),
             'val_recall': total_val_metrics[1] / len(self.valid_data_loader),
             'val_hmean': total_val_metrics[2] / len(self.valid_data_loader)
         }

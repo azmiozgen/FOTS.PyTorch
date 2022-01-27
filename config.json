@@ -4,8 +4,8 @@
     "gpus": [0],
     "data_loader": {
         "dataset":"json",
-        "data_dir": "/home/luning/Dev/data/OCR/Recognition/Train/SynthText/",
-        "batch_size": 24,
+        "data_dir": "/home/arcturus/repo/FOTS.PyTorch/datasets/price_tag",
+        "batch_size": 8,
         "shuffle": true,
         "workers": 12
     },

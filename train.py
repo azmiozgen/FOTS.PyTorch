@@ -12,7 +12,7 @@ from FOTS.model.metric import *
 from FOTS.trainer import Trainer
 from FOTS.utils.bbox import Toolbox
 
-logging.basicConfig(level=logging.DEBUG, format='')
+logging.basicConfig(level=logging.INFO, format='')
 
 
 def main(config, resume):
@@ -32,27 +32,38 @@ def main(config, resume):
         train = data_loader.train()
         val = data_loader.val()
     elif config['data_loader']['dataset'] == 'json':
-        from FOTS.data_loader import JSONDataLoaderFactory
-        data_loader = JSONDataLoaderFactory(config)
+        from FOTS.data_loader import PriceTagDataLoaderFactory
+        data_loader = PriceTagDataLoaderFactory(config)
         train = data_loader.train()
         val = data_loader.val()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in config['gpus']])
     model = eval(config['arch'])(config)
-    model.summary()
+    # model.summary()
 
-    loss = eval(config['loss'])(config)
-    metrics = [eval(metric) for metric in config['metrics']]
+    print('Training size:', len(data_loader.train_dataset))
+    print('Validation size:', len(data_loader.val_dataset))
 
-    trainer = Trainer(model, loss, metrics,
-                      resume=resume,
-                      config=config,
-                      data_loader=train,
-                      valid_data_loader=val,
-                      train_logger=train_logger,
-                      toolbox = Toolbox)
+    for batch_i, gt in enumerate(train):
+        print(batch_i, gt)
+        break
 
-    trainer.train()
+    for batch_i, gt in enumerate(val):
+        print(batch_i, gt)
+        break
+
+    # loss = eval(config['loss'])(config)
+    # metrics = [eval(metric) for metric in config['metrics']]
+
+    # trainer = Trainer(model, loss, metrics,
+    #                   resume=resume,
+    #                   config=config,
+    #                   data_loader=train,
+    #                   valid_data_loader=val,
+    #                   train_logger=train_logger,
+    #                   toolbox = Toolbox)
+
+    # trainer.train()
 
 
 if __name__ == '__main__':

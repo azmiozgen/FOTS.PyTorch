@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 # import locality_aware_nms as nms_locality
-from . import lanms
+### from . import lanms ### TODO
 import torch
 
 
@@ -193,7 +193,7 @@ class Toolbox:
         # nms part
         start = time.time()
         # boxes = nms_locality.nms_locality(boxes.astype(np.float64), nms_thres)
-        boxes = lanms.merge_quadrangle_n9(boxes.astype('float32'), nms_thres)
+        ### boxes = lanms.merge_quadrangle_n9(boxes.astype('float32'), nms_thres) ### TODO
         timer['nms'] = time.time() - start
         if boxes.shape[0] == 0:
             return np.array([]), timer
