@@ -77,6 +77,7 @@ class BaseTrainer:
         for epoch in range(self.start_epoch, self.epochs + 1):
             try:
                 result = self._train_epoch(epoch)
+                # result_val = self._valid_epoch(epoch)
             except torch.cuda.CudaError:
                 self._log_memory_useage()
 
@@ -90,6 +91,19 @@ class BaseTrainer:
                         log['val_' + metric.__name__] = result['val_metrics'][i]
                 else:
                     log[key] = value
+            # for key, value in result.items():
+            #     if key == 'metrics':
+            #         for i, metric in enumerate(self.metrics):
+            #             log[metric.__name__] = result['metrics'][i]
+            #     else:
+            #         log[key] = value
+            # for key, value in result_val.items():
+            #     if key == 'val_metrics':
+            #         for i, metric in enumerate(self.metrics):
+            #             log['val_' + metric.__name__] = result['val_metrics'][i]
+            #     else:
+            #         log[key] = value
+
             if self.train_logger is not None:
                 self.train_logger.add_entry(log)
                 if self.verbosity >= 1:
@@ -130,6 +144,14 @@ class BaseTrainer:
     def _train_epoch(self, epoch):
         """
         Training logic for an epoch
+
+        :param epoch: Current epoch number
+        """
+        raise NotImplementedError
+
+    def _valid_epoch(self, epoch):
+        """
+        Validation logic for an epoch
 
         :param epoch: Current epoch number
         """

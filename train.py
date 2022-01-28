@@ -4,6 +4,8 @@ import logging
 import os
 import pathlib
 
+from numpy import require
+
 from FOTS.data_loader import ICDAR
 from FOTS.logger import Logger
 from FOTS.model.model import *
@@ -44,34 +46,46 @@ def main(config, resume):
     print('Training size:', len(data_loader.train_dataset))
     print('Validation size:', len(data_loader.val_dataset))
 
-    for batch_i, gt in enumerate(train):
-        print(batch_i, gt)
-        break
+    # for batch_i, gt in enumerate(train):
+    #     image_files, images, score_maps, geo_maps, training_masks, transcriptions, boxes, mapping = gt
+    #     print('image_files:', image_files)
+    #     print('images', images.shape)
+    #     print('transcriptions', transcriptions)
+    #     print('boxes', boxes)
+    #     print('score_maps', score_maps.shape)
+    #     print('geo_maps', geo_maps.shape)
+    #     print('training_masks', training_masks.shape)
+    #     print('mapping', mapping)
+    #     # transformed_image_filename = image_filename_wo_ext + '_transformed.' + ext
+    #     # transformed_image_file = os.path.join(self.visualization_dir, transformed_image_filename)
+    #     # cv2.imwrite(transformed_image_file, cv2.cvtColor(images, cv2.COLOR_BGR2RGB))
+    #     # self.visualize(transformed_image_file, rectangles[0], transcriptions[0])
+    #     break
 
-    for batch_i, gt in enumerate(val):
-        print(batch_i, gt)
-        break
+    # for batch_i, gt in enumerate(val):
+    #     print(batch_i, gt)
+    #     break
 
-    # loss = eval(config['loss'])(config)
-    # metrics = [eval(metric) for metric in config['metrics']]
+    loss = eval(config['loss'])(config)
+    metrics = [eval(metric) for metric in config['metrics']]
 
-    # trainer = Trainer(model, loss, metrics,
-    #                   resume=resume,
-    #                   config=config,
-    #                   data_loader=train,
-    #                   valid_data_loader=val,
-    #                   train_logger=train_logger,
-    #                   toolbox = Toolbox)
+    trainer = Trainer(model, loss, metrics,
+                      resume=resume,
+                      config=config,
+                      data_loader=train,
+                      valid_data_loader=val,
+                      train_logger=train_logger,
+                      toolbox=Toolbox)
 
-    # trainer.train()
+    trainer.train()
 
 
 if __name__ == '__main__':
     logger = logging.getLogger()
 
     parser = argparse.ArgumentParser(description='PyTorch Template')
-    parser.add_argument('-c', '--config', default=None, type=str,
-                        help='config file path (default: None)')
+    parser.add_argument('-c', '--config', default='config.json', type=str,
+                        help='config file path (default: config.json)')
     parser.add_argument('-r', '--resume', default=None, type=str,
                         help='path to latest checkpoint (default: None)')
 

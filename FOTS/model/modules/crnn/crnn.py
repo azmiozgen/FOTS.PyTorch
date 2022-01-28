@@ -11,7 +11,7 @@ class BidirectionalLSTM(nn.Module):
     def forward(self, input, lengths):
         self.rnn.flatten_parameters()
         total_length = input.size(1)
-        packed_input = torch.nn.utils.rnn.pack_padded_sequence(input, lengths, batch_first=True)
+        packed_input = torch.nn.utils.rnn.pack_padded_sequence(input, lengths.cpu(), batch_first=True)
         recurrent, _ = self.rnn(packed_input)  # [T, b, h * 2]
         padded_input, _ = torch.nn.utils.rnn.pad_packed_sequence(recurrent, total_length=total_length, batch_first=True)
 

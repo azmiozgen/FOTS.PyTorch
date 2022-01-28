@@ -80,10 +80,10 @@ def check_and_validate_polys(polys, tags, xxx_todo_changeme):
         p_area = polygon_area(poly)
         if abs(p_area) < 1:
             # print poly
-            print('invalid poly')
+            # print('invalid poly')
             continue
         if p_area > 0:
-            print('poly in wrong direction')
+            # print('poly in wrong direction')
             poly = poly[(0, 3, 2, 1), :]
         validated_polys.append(poly)
         validated_tags.append(tag)
@@ -636,7 +636,7 @@ def image_label(txt_root, image_list, img_name, index,
     return images, score_maps, geo_maps, training_masks
 
 def collate_fn(batch):
-    imagePaths, img, score_map, geo_map, training_mask, transcripts, boxes = zip(*batch)
+    image_files, image, score_map, geo_map, training_mask, transcriptions, boxes = zip(*batch)
     bs = len(score_map)
     images = []
     score_maps = []
@@ -644,8 +644,8 @@ def collate_fn(batch):
     training_masks = []
 
     for i in range(bs):
-        if img[i] is not None:
-            a = torch.from_numpy(img[i])
+        if image[i] is not None:
+            a = torch.from_numpy(image[i])
             a = a.permute(2, 0, 1)
             images.append(a)
             b = torch.from_numpy(score_map[i])
@@ -658,7 +658,6 @@ def collate_fn(batch):
             d = d.permute(2, 0, 1)
             training_masks.append(d)
 
-
     images = torch.stack(images, 0)
     score_maps = torch.stack(score_maps, 0)
     geo_maps = torch.stack(geo_maps, 0)
@@ -666,20 +665,20 @@ def collate_fn(batch):
 
     mapping = []
     texts = []
-    bboxs = []
-    for index, gt in enumerate(zip(transcripts, boxes)):
+    bboxes = []
+    for index, gt in enumerate(zip(transcriptions, boxes)):
         for t, b in zip(gt[0], gt[1]):
             mapping.append(index)
             texts.append(t)
-            bboxs.append(b)
+            bboxes.append(b)
 
     mapping = np.array(mapping)
     texts = np.array(texts)
-    bboxs = np.stack(bboxs, axis=0)
-    bboxs = np.concatenate([bboxs, np.ones((len(bboxs), 1))], axis = 1).astype(np.float32)
-    imagePaths = [p.name for p in imagePaths]
+    bboxes = np.stack(bboxes, axis=0)
+    bboxes = np.concatenate([bboxes, np.ones((len(bboxes), 1))], axis=1).astype(np.float32)
+    # image_files = [p.name for p in image_files]
 
-    return imagePaths, images, score_maps, geo_maps, training_masks, texts, bboxs, mapping
+    return image_files, images, score_maps, geo_maps, training_masks, texts, bboxes, mapping
 
 
 ## img = bs * 512 * 512 *3

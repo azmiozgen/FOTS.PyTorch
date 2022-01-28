@@ -33,8 +33,8 @@ class Trainer(BaseTrainer):
         return t
 
     def _eval_metrics(self, pred, gt):
-        precious, recall, hmean = self.metrics[0](pred, gt)
-        return np.array([precious, recall, hmean])
+        precision, recall, hmean = self.metrics[0](pred, gt)
+        return np.array([precision, recall, hmean])
 
     def _train_epoch(self, epoch):
         """
@@ -120,12 +120,12 @@ class Trainer(BaseTrainer):
         }
 
         if self.valid:
-            val_log = self._valid_epoch()
+            val_log = self._valid_epoch(epoch)
             log = {**log, **val_log}
 
         return log
 
-    def _valid_epoch(self):
+    def _valid_epoch(self, epoch):
         """
         Validate after training an epoch
 
@@ -143,6 +143,16 @@ class Trainer(BaseTrainer):
                     img, score_map, geo_map, training_mask = self._to_tensor(img, score_map, geo_map, training_mask)
 
                     pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(img, boxes, mapping)
+                    transcripts = transcripts[indices]
+                    pred_boxes = pred_boxes[indices]
+                    pred_mapping = mapping[indices]
+                    pred_fns = [imagePaths[i] for i in pred_mapping]
+
+                    labels, label_lengths = self.labelConverter.encode(transcripts.tolist())
+                    labels = labels.to(self.device)
+                    label_lengths = label_lengths.to(self.device)
+                    recog = (labels, label_lengths)
+
                     pred_transcripts = []
                     pred_fns = []
                     if len(pred_mapping) > 0:
@@ -159,12 +169,24 @@ class Trainer(BaseTrainer):
                             pred_transcripts.append(t)
                         pred_transcripts = np.array(pred_transcripts)
 
+                    iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
+                    loss = iou_loss + cls_loss + reg_loss
+
                     gt_fns = [imagePaths[i] for i in mapping]
                     total_val_metrics += self._eval_metrics((pred_boxes, pred_transcripts, pred_fns),
                                                             (boxes, transcripts, gt_fns))
+
+                    if self.verbosity >= 2 and batch_idx % self.log_step == 0:
+                        self.logger.info('Val Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                            epoch,
+                            batch_idx * self.data_loader.batch_size,
+                            len(self.data_loader) * self.data_loader.batch_size,
+                            100.0 * batch_idx / len(self.data_loader),
+                            loss.item(), iou_loss.item(), cls_loss.item(), reg_loss.item()))
+
                 except:
-                    print(imagePaths)
-                    raise
+                    print('Validation failed')
+                    # raise
 
         return {
             'val_precision': total_val_metrics[0] / len(self.valid_data_loader),

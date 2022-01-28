@@ -4,10 +4,10 @@
     "gpus": [0],
     "data_loader": {
         "dataset":"json",
-        "data_dir": "/home/arcturus/repo/FOTS.PyTorch/datasets/price_tag",
-        "batch_size": 8,
+        "data_dirname": "price_tag",
+        "batch_size": 4,
         "shuffle": true,
-        "workers": 12
+        "workers": 4
     },
     "validation": {
         "validation_split": 0,

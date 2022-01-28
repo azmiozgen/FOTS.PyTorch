@@ -5,11 +5,11 @@ import pathlib
 
 from .datautils import *
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import scipy.io as sio
 from torch.utils.data import Dataset
 
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class PriceTagDataset(Dataset):
     def __init__(self, data_root, image_ext='jpg', json_ext='json'):
@@ -63,53 +63,90 @@ class PriceTagDataset(Dataset):
         x1, y1, x2, y2, x3, y3, x4, y4 = _x0, _y0, _x1, _y0, _x1, _y1, _x0, _y1
         bbox = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
 
-        return bbox, transcription
+        return np.array(bbox, dtype=np.float32), np.array([transcription], dtype=str)
 
-    def __getitem__(self, index, visualize=True):
+    def __getitem__(self, index, visualize=False):
         '''
         :param: index
         :return:
             image_file: path of image file
-            bbox: bounding boxe of word
+            bbox: bounding box of word
             transcription: transcription of word
         '''
         image_file = self.image_files[index]
-        # image_filename = self.image_filenames[index]
+        image_filename = self.image_filenames[index]
+        image_filename_wo_ext, ext = os.path.splitext(image_filename)
         bbox = self.bboxes[index]
         transcription = self.transcriptions[index]
 
+        # if visualize:
+        #     self.visualize(image_file, bbox, transcription)
+
+        image_file, image, score_map, geo_map, training_mask, transcription, bbox = \
+                self.__transform((image_file, bbox, transcription))
+
         if visualize:
-            self.visualize(image_file, bbox, transcription)
+            # print('image_file:', image_file)
+            # print('images', image.shape)
+            # print('transcriptions', transcription)
+            # print('bboxes', bbox)
+            # print('score_maps', score_map.shape)
+            # print('geo_maps', geo_map.shape)
+            # print('training_masks', training_mask.shape)
+            transformed_image_filename = image_filename_wo_ext + '_transformed.' + ext
+            transformed_image_file = os.path.join(self.visualization_dir, transformed_image_filename)
+            cv2.imwrite(transformed_image_file, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            self.visualize(transformed_image_file, bbox, transcription[0])
 
-        return torch.tensor(np.random.rand(7))
-
-        # try:
-        #     return self.__transform((image_file, bbox, transcription))
-        # except:
-        #     return self.__getitem__(torch.tensor(np.random.randint(0, len(self))))
+        return image_file, image, score_map, geo_map, training_mask, transcription, bbox
 
     def __len__(self):
         return len(self.image_files)
 
-    def __transform(self, gt, input_size=512, random_scale=np.array([0.5, 1, 2.0, 3.0]),
-                        background_ratio=3. / 8):
+    def __transform(self, gt, input_size=512, random_scale=[0.5, 1, 2.0, 3.0]):
         image_file, bbox, transcription = gt
-        images, score_maps, geo_maps, training_masks, transcriptions, rectangles = None, None, None, None, None, None
-        return image_file, images, score_maps, geo_maps, training_masks, transcriptions, rectangles
+        image = cv2.imread(image_file)
+        h, w = image.shape[:2]
+
+        ## Renormalize bbox
+        bbox *= np.array([w, h])
+
+        ## Random scale
+        rd_scale = np.random.choice(random_scale)
+        image = cv2.resize(image, dsize=None, fx=rd_scale, fy=rd_scale)
+        bbox *= rd_scale
+
+        ## Resize image
+        _h, _w, _ = image.shape
+        resize_h, resize_w = input_size, input_size
+        image = cv2.resize(image, dsize=(resize_w, resize_h))
+        ratio_w = resize_w / float(_w)
+        ratio_h = resize_h / float(_h)
+        bbox *= np.array([ratio_w, ratio_h])
+        score_map = np.zeros((input_size, input_size), dtype=np.uint8)
+        geo_map = np.zeros((input_size, input_size, 5), dtype=np.float32)
+        training_mask = np.ones((input_size, input_size), dtype=np.uint8)
+
+        ## Arrange sizes
+        images = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
+        score_maps = score_map[::4, ::4, np.newaxis].astype(np.float32)
+        geo_maps = geo_map[::4, ::4, :].astype(np.float32)
+        training_masks = training_mask[::4, ::4, np.newaxis].astype(np.float32)
+        bbox = [bbox.flatten()]
+
+        return image_file, images, score_maps, geo_maps, training_masks, transcription, bbox
 
     def visualize(self, image_file, bbox, transcription):
-        bbox = np.array(bbox)
+        bbox = np.array(bbox).astype(int)
         image = Image.open(image_file)
-        w, h = image.size
-        bbox *= np.array([w, h])
-        bbox = bbox.astype(np.int32)
         image_draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype('FreeMono.ttf', 20)
         x1, y1 = bbox[0]
         x2, y2 = bbox[1]
         x3, y3 = bbox[2]
         x4, y4 = bbox[3]
         image_draw.polygon([(x1, y1), (x2, y2), (x3, y3), (x4, y4)], outline='red')
-        image_draw.text((x1, y1), transcription, fill='red')
+        image_draw.text((x1, y1), transcription, fill='red', font=font)
         image.save(os.path.join(self.visualization_dir, os.path.basename(image_file)))
 
 class ICDAR(Dataset):

@@ -12,7 +12,10 @@ class PriceTagDataLoaderFactory(BaseDataLoader):
 
     def __init__(self, config):
         super(PriceTagDataLoaderFactory, self).__init__(config)
-        data_root = self.config['data_loader']['data_dir']
+        base_dir = os.path.abspath(os.path.join(__file__, os.path.pardir, os.path.pardir, os.path.pardir))
+        datasets_dir = os.path.join(base_dir, 'datasets')
+        data_dirname = self.config['data_loader']['data_dirname']
+        data_root = os.path.join(datasets_dir, data_dirname)
         train_data_root = os.path.join(data_root, 'train')
         val_data_root = os.path.join(data_root, 'val')
         self.train_dataset = PriceTagDataset(train_data_root)
@@ -20,18 +23,18 @@ class PriceTagDataLoaderFactory(BaseDataLoader):
         self.workers = self.config['data_loader']['workers']
 
     def train(self):
-        # train_loader = torchdata.DataLoader(self.train_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
-        #                                    shuffle=self.shuffle, collate_fn=collate_fn)
         train_loader = torchdata.DataLoader(self.train_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
-                                           shuffle=self.shuffle)
+                                           shuffle=self.shuffle, collate_fn=collate_fn)
+        # train_loader = torchdata.DataLoader(self.train_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
+                                        #    shuffle=self.shuffle)
         return train_loader
 
     def val(self):
         shuffle = self.config['validation']['shuffle']
-        # val_loader = torchdata.DataLoader(self.val_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
-        #                                  shuffle=shuffle, collate_fn=collate_fn)
         val_loader = torchdata.DataLoader(self.val_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
-                                         shuffle=shuffle)
+                                         shuffle=shuffle, collate_fn=collate_fn)
+        # val_loader = torchdata.DataLoader(self.val_dataset, num_workers=self.num_workers, batch_size=self.batch_size,
+                                        #  shuffle=shuffle)
         return val_loader
 
 class SynthTextDataLoaderFactory(BaseDataLoader):

@@ -35,8 +35,7 @@ class ROIRotate(nn.Module):
             feature = feature_map[img_index]  # B * H * W * C
             images.append(feature)
 
-            x1, y1, x2, y2, x3, y3, x4, y4 = box / 4  # 521 -> 128
-
+            x1, y1, x2, y2, x3, y3, x4, y4 = box.flatten() / 4  # 521 -> 128
 
             # show_box(feature, box / 4, 'ffffff', isFeaturemap=True)
 
