@@ -18,8 +18,9 @@ class PriceTagDataLoaderFactory(BaseDataLoader):
         data_root = os.path.join(datasets_dir, data_dirname)
         train_data_root = os.path.join(data_root, 'train')
         val_data_root = os.path.join(data_root, 'val')
-        self.train_dataset = PriceTagDataset(train_data_root)
-        self.val_dataset = PriceTagDataset(val_data_root)
+        input_size = config['data_loader']['input_size']
+        self.train_dataset = PriceTagDataset(train_data_root, input_size=input_size)
+        self.val_dataset = PriceTagDataset(val_data_root, input_size=input_size)
         self.workers = self.config['data_loader']['workers']
 
     def train(self):

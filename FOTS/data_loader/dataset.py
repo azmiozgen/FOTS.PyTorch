@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 logger = logging.getLogger(__name__)
 
 class PriceTagDataset(Dataset):
-    def __init__(self, data_root, image_ext='jpg', json_ext='json'):
+    def __init__(self, data_root, image_ext='jpg', json_ext='json', input_size=256):
         images_dir = os.path.join(data_root, 'images')
         annotations_dir = os.path.join(data_root, 'annotations')
         self.image_files = sorted(glob.glob(os.path.join(images_dir, '*.' + image_ext)))
@@ -25,6 +25,7 @@ class PriceTagDataset(Dataset):
             self.transcriptions.append(transcription)
         self.visualization_dir = os.path.join(data_root, 'visualization')
         os.makedirs(self.visualization_dir, exist_ok=True)
+        self.input_size = input_size
 
     def _load_annotation(self, ann_file, keys=['price', 'price_cent'],
                 bbox_name='bbox', content_name='content', delimiter=','):
@@ -105,7 +106,7 @@ class PriceTagDataset(Dataset):
     def __len__(self):
         return len(self.image_files)
 
-    def __transform(self, gt, input_size=512, random_scale=[0.5, 1, 2.0, 3.0],
+    def __transform(self, gt, random_scale=[0.5, 1, 2.0, 3.0],
             geo_map_channels=5):
         image_file, bbox, transcription = gt
         image = cv2.imread(image_file)
@@ -121,15 +122,15 @@ class PriceTagDataset(Dataset):
 
         ## Resize image
         _h, _w, _ = image.shape
-        image = cv2.resize(image, dsize=(input_size, input_size))
-        ratio_w = input_size / _w
-        ratio_h = input_size / _h
+        image = cv2.resize(image, dsize=(self.input_size, self.input_size))
+        ratio_w = self.input_size / _w
+        ratio_h = self.input_size / _h
         bbox *= np.array([ratio_w, ratio_h, ratio_w, ratio_h])
 
         ## Set score map, geo map and training mask
-        score_map = np.zeros((input_size, input_size), dtype=np.uint8)
-        geo_map = np.zeros((input_size, input_size, geo_map_channels), dtype=np.float32)
-        training_mask = np.ones((input_size, input_size), dtype=np.uint8)  ## One region
+        score_map = np.zeros((self.input_size, self.input_size), dtype=np.uint8)
+        geo_map = np.zeros((self.input_size, self.input_size, geo_map_channels), dtype=np.float32)
+        training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)  ## One region
 
         ## Mask score map and geo map by bbox
         _bbox = bbox.astype(np.int32)

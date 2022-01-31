@@ -5,6 +5,7 @@
     "data_loader": {
         "dataset":"json",
         "data_dirname": "price_tag",
+        "input_size": 256,
         "batch_size": 4,
         "shuffle": true,
         "workers": 4
@@ -26,9 +27,9 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 3000,
+        "epochs": 52,
         "save_dir": "saved/",
-        "save_freq": 50,
+        "save_freq": 1,
         "verbosity": 2,
         "monitor": "hmean",
         "monitor_mode": "max"

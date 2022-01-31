@@ -484,12 +484,13 @@ def eval(pred: tuple, gt: tuple, config: dict) -> dict:
     :return:
     """
 
-    gtFileNameRegExp = 'img_([0-9]+).jpg'
-    predFileNameRegExp = 'img_([0-9]+).jpg'
+    # gtFileNameRegExp = 'img_([0-9]+).jpg'
+    # predFileNameRegExp = 'img_([0-9]+).jpg'
+    gtFileNameRegExp = ''
+    predFileNameRegExp = ''
 
     pred_boxes_dict, pred_transcripts_dict, pred_conf_dict = transform_output(pred, predFileNameRegExp, gt=False)
     gt_boxes_dict, gt_transcripts_dict, _ = transform_output(gt, gtFileNameRegExp)
-
     output = evaluate_method((pred_boxes_dict, pred_transcripts_dict, pred_conf_dict),
                              (gt_boxes_dict, gt_transcripts_dict), config)
     return output

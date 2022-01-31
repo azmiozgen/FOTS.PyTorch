@@ -99,7 +99,7 @@ if __name__ == '__main__':
     else:
         if args.resume is not None:
             logger.warning('Warning: --config overridden by --resume')
-            config = torch.load(args.resume, map_location = 'cpu')['config']
+            config = torch.load(args.resume, map_location='cpu')['config']
 
     assert config is not None
 

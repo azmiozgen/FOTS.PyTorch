@@ -22,7 +22,7 @@ class BaseTrainer:
         self.epochs = config['trainer']['epochs']
         self.save_freq = config['trainer']['save_freq']
         self.verbosity = config['trainer']['verbosity']
-        self.summyWriter = SummaryWriter()
+        self.summary_writer = SummaryWriter()
 
         if torch.cuda.is_available():
             if config['cuda']:
@@ -107,26 +107,31 @@ class BaseTrainer:
                 self.train_logger.add_entry(log)
                 if self.verbosity >= 1:
                     for key, value in log.items():
-                        self.logger.info('    {:15s}: {}'.format(str(key), value))
+                        if str(key) == 'epoch':
+                            self.logger.info('    {:15s}: {}'.format(str(key), value))
+                        else:
+                            self.logger.info('    {:15s}: {:.4f}'.format(str(key), value))
             if (self.monitor_mode == 'min' and log[self.monitor] < self.monitor_best)\
                     or (self.monitor_mode == 'max' and log[self.monitor] > self.monitor_best):
                 self.monitor_best = log[self.monitor]
-                self._save_checkpoint(epoch, log, save_best=True)
+                # self._save_checkpoint(epoch, log, save_best=True)
+                pass
             if epoch % self.save_freq == 0:
-                self._save_checkpoint(epoch, log)
+                # self._save_checkpoint(epoch, log)
+                pass
             if self.lr_scheduler:
                 self.lr_scheduler.step()
                 lr = self.lr_scheduler.get_lr()[0]
                 self.logger.info('New Learning Rate: {:.8f}'.format(lr))
 
-            self.summyWriter.add_scalar('Train_loss', result['loss'], epoch)
-            self.summyWriter.add_scalar('Train_precision', result['precision'], epoch)
-            self.summyWriter.add_scalar('Train_recall', result['recall'], epoch)
-            self.summyWriter.add_scalar('Train_hmean_f1', result['hmean'], epoch)
-            self.summyWriter.add_scalar('Val_precision', result['val_precision'], epoch)
-            self.summyWriter.add_scalar('Val_recall', result['val_recall'], epoch)
-            self.summyWriter.add_scalar('Val_hmean_f1', result['val_hmean'], epoch)
-        self.summyWriter.close()
+            self.summary_writer.add_scalar('Train_loss', result['loss'], epoch)
+            self.summary_writer.add_scalar('Train_precision', result['precision'], epoch)
+            self.summary_writer.add_scalar('Train_recall', result['recall'], epoch)
+            self.summary_writer.add_scalar('Train_hmean_f1', result['hmean'], epoch)
+            self.summary_writer.add_scalar('Val_precision', result['val_precision'], epoch)
+            self.summary_writer.add_scalar('Val_recall', result['val_recall'], epoch)
+            self.summary_writer.add_scalar('Val_hmean_f1', result['val_hmean'], epoch)
+        self.summary_writer.close()
 
     def _log_memory_useage(self):
         if not self.with_cuda: return
