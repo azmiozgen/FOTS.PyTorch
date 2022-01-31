@@ -58,12 +58,13 @@ class PriceTagDataset(Dataset):
             _x0, _x1 = _x1, _x0
         if _y0 > _y1:
             _y0, _y1 = _y1, _y0
-        _x0, _y0, _x1, _y1 = max(0, _x0), max(0, _y0), max(0, _x1), max(0, _y1)
-        _x0, _y0, _x1, _y1 = min(1, _x0), min(1, _y0), min(1, _x1), min(1, _y1)
-        x1, y1, x2, y2, x3, y3, x4, y4 = _x0, _y0, _x1, _y0, _x1, _y1, _x0, _y1
-        bbox = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+        x0, y0, x1, y1 = max(0, _x0), max(0, _y0), max(0, _x1), max(0, _y1)
+        x0, y0, x1, y1 = min(1, _x0), min(1, _y0), min(1, _x1), min(1, _y1)
+        bbox = [x0, y0, x1, y1]
+        # x1, y1, x2, y2, x3, y3, x4, y4 = _x0, _y0, _x1, _y0, _x1, _y1, _x0, _y1
+        # bbox = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
 
-        return np.array(bbox, dtype=np.float32), np.array([transcription], dtype=str)
+        return bbox, transcription
 
     def __getitem__(self, index, visualize=False):
         '''
@@ -95,7 +96,8 @@ class PriceTagDataset(Dataset):
             # print('training_masks', training_mask.shape)
             transformed_image_filename = image_filename_wo_ext + '_transformed.' + ext
             transformed_image_file = os.path.join(self.visualization_dir, transformed_image_filename)
-            cv2.imwrite(transformed_image_file, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            # cv2.imwrite(transformed_image_file, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            cv2.imwrite(transformed_image_file, image)
             self.visualize(transformed_image_file, bbox, transcription[0])
 
         return image_file, image, score_map, geo_map, training_mask, transcription, bbox
@@ -103,13 +105,14 @@ class PriceTagDataset(Dataset):
     def __len__(self):
         return len(self.image_files)
 
-    def __transform(self, gt, input_size=512, random_scale=[0.5, 1, 2.0, 3.0]):
+    def __transform(self, gt, input_size=512, random_scale=[0.5, 1, 2.0, 3.0],
+            geo_map_channels=5):
         image_file, bbox, transcription = gt
         image = cv2.imread(image_file)
         h, w = image.shape[:2]
 
         ## Renormalize bbox
-        bbox *= np.array([w, h])
+        bbox *= np.array([w, h, w, h])
 
         ## Random scale
         rd_scale = np.random.choice(random_scale)
@@ -118,21 +121,33 @@ class PriceTagDataset(Dataset):
 
         ## Resize image
         _h, _w, _ = image.shape
-        resize_h, resize_w = input_size, input_size
-        image = cv2.resize(image, dsize=(resize_w, resize_h))
-        ratio_w = resize_w / float(_w)
-        ratio_h = resize_h / float(_h)
-        bbox *= np.array([ratio_w, ratio_h])
-        score_map = np.zeros((input_size, input_size), dtype=np.uint8)
-        geo_map = np.zeros((input_size, input_size, 5), dtype=np.float32)
-        training_mask = np.ones((input_size, input_size), dtype=np.uint8)
+        image = cv2.resize(image, dsize=(input_size, input_size))
+        ratio_w = input_size / _w
+        ratio_h = input_size / _h
+        bbox *= np.array([ratio_w, ratio_h, ratio_w, ratio_h])
 
-        ## Arrange sizes
-        images = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
+        ## Set score map, geo map and training mask
+        score_map = np.zeros((input_size, input_size), dtype=np.uint8)
+        geo_map = np.zeros((input_size, input_size, geo_map_channels), dtype=np.float32)
+        training_mask = np.ones((input_size, input_size), dtype=np.uint8)  ## One region
+
+        ## Mask score map and geo map by bbox
+        _bbox = bbox.astype(np.int32)
+        score_map[_bbox[1]:_bbox[3], _bbox[0]:_bbox[2]] = 1
+        geo_map[_bbox[1]:_bbox[3], _bbox[0]:_bbox[2], :] = 1.0
+
+        ## Convert bbox to 8-points
+        _x0, _y0, _x1, _y1 = bbox
+        x1, y1, x2, y2, x3, y3, x4, y4 = _x0, _y0, _x1, _y0, _x1, _y1, _x0, _y1
+        bbox = [x1, y1, x2, y2, x3, y3, x4, y4]
+
+        ## Arrange
+        # images = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
+        images = image.astype(np.float32)
         score_maps = score_map[::4, ::4, np.newaxis].astype(np.float32)
         geo_maps = geo_map[::4, ::4, :].astype(np.float32)
         training_masks = training_mask[::4, ::4, np.newaxis].astype(np.float32)
-        bbox = [bbox.flatten()]
+        transcription = np.array([transcription], dtype=str)
 
         return image_file, images, score_maps, geo_maps, training_masks, transcription, bbox
 
@@ -141,10 +156,10 @@ class PriceTagDataset(Dataset):
         image = Image.open(image_file)
         image_draw = ImageDraw.Draw(image)
         font = ImageFont.truetype('FreeMono.ttf', 20)
-        x1, y1 = bbox[0]
-        x2, y2 = bbox[1]
-        x3, y3 = bbox[2]
-        x4, y4 = bbox[3]
+        x1, y1 = bbox[:2]
+        x2, y2 = bbox[2:4]
+        x3, y3 = bbox[4:6]
+        x4, y4 = bbox[6:]
         image_draw.polygon([(x1, y1), (x2, y2), (x3, y3), (x4, y4)], outline='red')
         image_draw.text((x1, y1), transcription, fill='red', font=font)
         image.save(os.path.join(self.visualization_dir, os.path.basename(image_file)))

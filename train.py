@@ -67,7 +67,7 @@ def main(config, resume):
     #     break
 
     loss = eval(config['loss'])(config)
-    metrics = [eval(metric) for metric in config['metrics']]
+    metrics = [eval(metric) for metric in config['metrics']]  ## precision, recall, hmean (f1)
 
     trainer = Trainer(model, loss, metrics,
                       resume=resume,

@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torchvision
 from ..base import BaseTrainer
 from ..utils.bbox import Toolbox
 from ..model.keys import keys
@@ -66,6 +67,10 @@ class Trainer(BaseTrainer):
                 #     image = img[i]
                 #     for tt, bb in zip(transcripts[i], boxes[i]):
                 #         show_box(image.permute(1, 2, 0).detach().cpu().numpy()[:,:, ::-1].astype(np.uint8).copy(), bb, tt)
+                img_grid = torchvision.utils.make_grid(img)
+                score_map_grid = torchvision.utils.make_grid(score_map)
+                self.summyWriter.add_image('images', img_grid, epoch * len(self.data_loader) + batch_idx)
+                self.summyWriter.add_image('masks', score_map_grid, epoch * len(self.data_loader) + batch_idx)
 
                 self.optimizer.zero_grad()
                 pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(img, boxes, mapping)

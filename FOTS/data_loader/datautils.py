@@ -663,22 +663,22 @@ def collate_fn(batch):
     geo_maps = torch.stack(geo_maps, 0)
     training_masks = torch.stack(training_masks, 0)
 
-    mapping = []
-    texts = []
-    bboxes = []
-    for index, gt in enumerate(zip(transcriptions, boxes)):
-        for t, b in zip(gt[0], gt[1]):
-            mapping.append(index)
-            texts.append(t)
-            bboxes.append(b)
+    # mapping = []
+    # texts = []
+    # bboxes = []
+    # for index, gt in enumerate(zip(transcriptions, boxes)):
+    #     for t, b in zip(gt[0], gt[1]):
+    #         mapping.append(index)
+    #         texts.append(t)
+    #         bboxes.append(b)
 
-    mapping = np.array(mapping)
-    texts = np.array(texts)
-    bboxes = np.stack(bboxes, axis=0)
+    mapping = np.arange(len(transcriptions))
+    bboxes = np.stack(boxes, axis=0)
+    transcriptions = np.stack(transcriptions).flatten()
     bboxes = np.concatenate([bboxes, np.ones((len(bboxes), 1))], axis=1).astype(np.float32)
     # image_files = [p.name for p in image_files]
 
-    return image_files, images, score_maps, geo_maps, training_masks, texts, bboxes, mapping
+    return image_files, images, score_maps, geo_maps, training_masks, transcriptions, bboxes, mapping
 
 
 ## img = bs * 512 * 512 *3

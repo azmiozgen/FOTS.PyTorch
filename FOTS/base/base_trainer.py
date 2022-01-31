@@ -77,7 +77,6 @@ class BaseTrainer:
         for epoch in range(self.start_epoch, self.epochs + 1):
             try:
                 result = self._train_epoch(epoch)
-                # result_val = self._valid_epoch(epoch)
             except torch.cuda.CudaError:
                 self._log_memory_useage()
 
@@ -120,8 +119,13 @@ class BaseTrainer:
                 lr = self.lr_scheduler.get_lr()[0]
                 self.logger.info('New Learning Rate: {:.8f}'.format(lr))
 
-            self.summyWriter.add_scalars('Train', {'train_' + self.monitor: result[self.monitor],
-                                                   'val_' + self.monitor: result[self.monitor]}, epoch)
+            self.summyWriter.add_scalar('Train_loss', result['loss'], epoch)
+            self.summyWriter.add_scalar('Train_precision', result['precision'], epoch)
+            self.summyWriter.add_scalar('Train_recall', result['recall'], epoch)
+            self.summyWriter.add_scalar('Train_hmean_f1', result['hmean'], epoch)
+            self.summyWriter.add_scalar('Val_precision', result['val_precision'], epoch)
+            self.summyWriter.add_scalar('Val_recall', result['val_recall'], epoch)
+            self.summyWriter.add_scalar('Val_hmean_f1', result['val_hmean'], epoch)
         self.summyWriter.close()
 
     def _log_memory_useage(self):
