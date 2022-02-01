@@ -114,11 +114,9 @@ class BaseTrainer:
             if (self.monitor_mode == 'min' and log[self.monitor] < self.monitor_best)\
                     or (self.monitor_mode == 'max' and log[self.monitor] > self.monitor_best):
                 self.monitor_best = log[self.monitor]
-                # self._save_checkpoint(epoch, log, save_best=True)
-                pass
+                self._save_checkpoint(epoch, log, save_best=True)
             if epoch % self.save_freq == 0:
-                # self._save_checkpoint(epoch, log)
-                pass
+                self._save_checkpoint(epoch, log)
             if self.lr_scheduler:
                 self.lr_scheduler.step()
                 lr = self.lr_scheduler.get_lr()[0]
@@ -128,9 +126,14 @@ class BaseTrainer:
             self.summary_writer.add_scalar('Train_precision', result['precision'], epoch)
             self.summary_writer.add_scalar('Train_recall', result['recall'], epoch)
             self.summary_writer.add_scalar('Train_hmean_f1', result['hmean'], epoch)
+            self.summary_writer.add_scalar('Train_text_accuracy', result['text_accuracy'], epoch)
+            self.summary_writer.add_scalar('Train_value_error', result['value_error'], epoch)
+            self.summary_writer.add_scalar('Val_loss', result['val_loss'], epoch)
             self.summary_writer.add_scalar('Val_precision', result['val_precision'], epoch)
             self.summary_writer.add_scalar('Val_recall', result['val_recall'], epoch)
             self.summary_writer.add_scalar('Val_hmean_f1', result['val_hmean'], epoch)
+            self.summary_writer.add_scalar('Val_text_accuracy', result['val_text_accuracy'], epoch)
+            self.summary_writer.add_scalar('Val_value_error', result['val_value_error'], epoch)
         self.summary_writer.close()
 
     def _log_memory_useage(self):

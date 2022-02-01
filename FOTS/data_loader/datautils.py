@@ -636,11 +636,12 @@ def image_label(txt_root, image_list, img_name, index,
     return images, score_maps, geo_maps, training_masks
 
 def collate_fn(batch):
-    image_files, image, score_map, geo_map, training_mask, transcriptions, boxes = zip(*batch)
+    # image_files, image, score_map, geo_map, training_mask, transcriptions, boxes = zip(*batch)
+    image_files, image, score_map, training_mask, transcriptions, boxes = zip(*batch)
     bs = len(score_map)
     images = []
     score_maps = []
-    geo_maps = []
+    # geo_maps = []
     training_masks = []
 
     for i in range(bs):
@@ -651,37 +652,28 @@ def collate_fn(batch):
             b = torch.from_numpy(score_map[i])
             b = b.permute(2, 0, 1)
             score_maps.append(b)
-            c = torch.from_numpy(geo_map[i])
-            c = c.permute(2, 0, 1)
-            geo_maps.append(c)
+            # c = torch.from_numpy(geo_map[i])
+            # c = c.permute(2, 0, 1)
+            # geo_maps.append(c)
             d = torch.from_numpy(training_mask[i])
             d = d.permute(2, 0, 1)
             training_masks.append(d)
 
     images = torch.stack(images, 0)
     score_maps = torch.stack(score_maps, 0)
-    geo_maps = torch.stack(geo_maps, 0)
+    # geo_maps = torch.stack(geo_maps, 0)
     training_masks = torch.stack(training_masks, 0)
-
-    # mapping = []
-    # texts = []
-    # bboxes = []
-    # for index, gt in enumerate(zip(transcriptions, boxes)):
-    #     for t, b in zip(gt[0], gt[1]):
-    #         mapping.append(index)
-    #         texts.append(t)
-    #         bboxes.append(b)
 
     mapping = np.arange(len(transcriptions))
     bboxes = np.stack(boxes, axis=0)
     transcriptions = np.stack(transcriptions).flatten()
     bboxes = np.concatenate([bboxes, np.ones((len(bboxes), 1))], axis=1).astype(np.float32)
-    # image_files = [p.name for p in image_files]
 
-    return image_files, images, score_maps, geo_maps, training_masks, transcriptions, bboxes, mapping
+    # return image_files, images, score_maps, geo_maps, training_masks, transcriptions, bboxes, mapping
+    return image_files, images, score_maps, training_masks, transcriptions, bboxes, mapping
 
 
-## img = bs * 512 * 512 *3
-## score_map = bs* 128 * 128 * 1
-## geo_map = bs * 128 * 128 * 5
-## training_mask = bs * 128 * 128 * 1
+## img = bs * input_size * input_size * 3
+## score_map = bs * (input_size / 4) * (input_size / 4) * 1
+## geo_map = bs * (input_size / 4) * (input_size / 4) * 5
+## training_mask = bs * (input_size / 4) * (input_size / 4) * 1

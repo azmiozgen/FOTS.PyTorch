@@ -17,6 +17,7 @@ class FOTSModel:
     def __init__(self, config):
 
         self.mode = config['model']['mode']
+        self.score_map_threshold = config['model']['score_map_threshold']
 
         bbNet =  pm.__dict__['resnet50'](pretrained='imagenet') # resnet50 in paper
         self.sharedConv = shared_conv.SharedConv(bbNet, config)
@@ -93,10 +94,9 @@ class FOTSModel:
         else:
             device = torch.device('cpu')
 
-
         feature_map = self.sharedConv.forward(image)
-
-        score_map, geo_map = self.detector(feature_map)
+        # score_map, geo_map = self.detector(feature_map)
+        score_map = self.detector(feature_map)
 
         if self.training:
             rois, lengths, indices = self.roirotate(feature_map, boxes[:, :8], mapping)
@@ -104,36 +104,36 @@ class FOTSModel:
             pred_boxes = boxes
         else:
             score = score_map.permute(0, 2, 3, 1)
-            geometry = geo_map.permute(0, 2, 3, 1)
+            # geometry = geo_map.permute(0, 2, 3, 1)
             score = score.detach().cpu().numpy()
-            geometry = geometry.detach().cpu().numpy()
-
-            timer = {'net': 0, 'restore': 0, 'nms': 0}
+            # geometry = geometry.detach().cpu().numpy()
 
             pred_boxes = []
             pred_mapping = []
             for i in range(score.shape[0]):
                 s = score[i, :, :, 0]
-                g = geometry[i, :, :, ]
-                bb, _ = Toolbox.detect(score_map=s, geo_map=g, timer=timer)
-                bb_size = bb.shape[0]
+                # g = geometry[i, :, :, :]
+                # bb, _ = Toolbox.detect(score_map=s, geo_map=g, timer=timer)
+                bb = Toolbox.detect(score_map=s, score_map_thresh=self.score_map_threshold)
 
-                if len(bb) > 0:
-                    pred_mapping.append(np.array([i] * bb_size))
-                    pred_boxes.append(bb)
+                # pred_mapping.append(np.array([i] * bb_size))
+                pred_mapping.append(i)
+                pred_boxes.append(bb)
 
             if len(pred_mapping) > 0:
-                pred_boxes = np.concatenate(pred_boxes)
-                pred_mapping = np.concatenate(pred_mapping)
+                pred_boxes = np.array(pred_boxes).astype(np.float32)
+                pred_mapping = np.array(pred_mapping)
                 rois, lengths, indices = self.roirotate(feature_map, pred_boxes[:, :8], pred_mapping)
             else:
-                return score_map, geo_map, (None, None), pred_boxes, pred_mapping, None
+                # return score_map, geo_map, (None, None), pred_boxes, pred_mapping, None
+                return score_map, (None, None), pred_boxes, pred_mapping, None
 
         lengths = torch.tensor(lengths).to(device)
         preds = self.recognizer(rois, lengths)
         preds = preds.permute(1, 0, 2) # B, T, C -> T, B, C
 
-        return score_map, geo_map, (preds, lengths), pred_boxes, pred_mapping, indices
+        # return score_map, geo_map, (preds, lengths), pred_boxes, pred_mapping, indices
+        return score_map, (preds, lengths), pred_boxes, pred_mapping, indices
 
 
 class Recognizer(BaseModel):
@@ -151,8 +151,9 @@ class Detector(BaseModel):
     def __init__(self, config):
         super().__init__(config)
         self.scoreMap = nn.Conv2d(32, 1, kernel_size = 1)
-        self.geoMap = nn.Conv2d(32, 4, kernel_size = 1)
-        self.angleMap = nn.Conv2d(32, 1, kernel_size = 1)
+        # self.geoMap = nn.Conv2d(32, 4, kernel_size = 1)
+        # self.angleMap = nn.Conv2d(32, 1, kernel_size = 1)
+        self.input_size = config['data_loader']['input_size']
 
     def forward(self, *input):
         final,  = input
@@ -160,13 +161,13 @@ class Detector(BaseModel):
         score = self.scoreMap(final)
         score = torch.sigmoid(score)
 
-        geoMap = self.geoMap(final)
-        # 出来的是 normalise 到 0 -1 的值是到上下左右的距离，但是图像他都缩放到  512 * 512 了，但是 gt 里是算的绝对数值来的
-        geoMap = torch.sigmoid(geoMap) * 512
+        # geoMap = self.geoMap(final)
+        # geoMap = torch.sigmoid(geoMap) * self.input_size
 
-        angleMap = self.angleMap(final)
-        angleMap = (torch.sigmoid(angleMap) - 0.5) * math.pi / 2
+        # angleMap = self.angleMap(final)
+        # angleMap = (torch.sigmoid(angleMap) - 0.5) * math.pi / 2
 
-        geometry = torch.cat([geoMap, angleMap], dim=1)
+        # geometry = torch.cat([geoMap, angleMap], dim=1)
 
-        return score, geometry
+        # return score, geometry
+        return score

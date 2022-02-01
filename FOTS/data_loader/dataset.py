@@ -84,7 +84,9 @@ class PriceTagDataset(Dataset):
         # if visualize:
         #     self.visualize(image_file, bbox, transcription)
 
-        image_file, image, score_map, geo_map, training_mask, transcription, bbox = \
+        # image_file, image, score_map, geo_map, training_mask, transcription, bbox = \
+        #         self.__transform((image_file, bbox, transcription))
+        image_file, image, score_map, training_mask, transcription, bbox = \
                 self.__transform((image_file, bbox, transcription))
 
         if visualize:
@@ -101,13 +103,13 @@ class PriceTagDataset(Dataset):
             cv2.imwrite(transformed_image_file, image)
             self.visualize(transformed_image_file, bbox, transcription[0])
 
-        return image_file, image, score_map, geo_map, training_mask, transcription, bbox
+        # return image_file, image, score_map, geo_map, training_mask, transcription, bbox
+        return image_file, image, score_map, training_mask, transcription, bbox
 
     def __len__(self):
         return len(self.image_files)
 
-    def __transform(self, gt, random_scale=[0.5, 1, 2.0, 3.0],
-            geo_map_channels=5):
+    def __transform(self, gt, random_scale=[0.5, 1, 2.0, 3.0]):
         image_file, bbox, transcription = gt
         image = cv2.imread(image_file)
         h, w = image.shape[:2]
@@ -116,9 +118,9 @@ class PriceTagDataset(Dataset):
         bbox *= np.array([w, h, w, h])
 
         ## Random scale
-        rd_scale = np.random.choice(random_scale)
-        image = cv2.resize(image, dsize=None, fx=rd_scale, fy=rd_scale)
-        bbox *= rd_scale
+        # rd_scale = np.random.choice(random_scale)
+        # image = cv2.resize(image, dsize=None, fx=rd_scale, fy=rd_scale)
+        # bbox *= rd_scale
 
         ## Resize image
         _h, _w, _ = image.shape
@@ -129,28 +131,32 @@ class PriceTagDataset(Dataset):
 
         ## Set score map, geo map and training mask
         score_map = np.zeros((self.input_size, self.input_size), dtype=np.uint8)
-        geo_map = np.zeros((self.input_size, self.input_size, geo_map_channels), dtype=np.float32)
+        # geo_map = np.zeros((self.input_size, self.input_size, geo_map_channels), dtype=np.float32)
         training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)  ## One region
 
         ## Mask score map and geo map by bbox
+        ## Mask score map by bbox
         _bbox = bbox.astype(np.int32)
         score_map[_bbox[1]:_bbox[3], _bbox[0]:_bbox[2]] = 1
-        geo_map[_bbox[1]:_bbox[3], _bbox[0]:_bbox[2], :] = 1.0
+        # geo_map[_bbox[1]:_bbox[3], _bbox[0]:_bbox[2], :] = 1.0
 
         ## Convert bbox to 8-points
         _x0, _y0, _x1, _y1 = bbox
         x1, y1, x2, y2, x3, y3, x4, y4 = _x0, _y0, _x1, _y0, _x1, _y1, _x0, _y1
         bbox = [x1, y1, x2, y2, x3, y3, x4, y4]
 
+        ## Normalize image
+        image = (image - np.min(image)) / (np.max(image) - np.min(image) + 1e-10)
+
         ## Arrange
-        # images = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
-        images = image.astype(np.float32)
+        images = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
         score_maps = score_map[::4, ::4, np.newaxis].astype(np.float32)
-        geo_maps = geo_map[::4, ::4, :].astype(np.float32)
+        # geo_maps = geo_map[::4, ::4, :].astype(np.float32)
         training_masks = training_mask[::4, ::4, np.newaxis].astype(np.float32)
         transcription = np.array([transcription], dtype=str)
 
-        return image_file, images, score_maps, geo_maps, training_masks, transcription, bbox
+        # return image_file, images, score_maps, geo_maps, training_masks, transcription, bbox
+        return image_file, images, score_maps, training_masks, transcription, bbox
 
     def visualize(self, image_file, bbox, transcription):
         bbox = np.array(bbox).astype(int)

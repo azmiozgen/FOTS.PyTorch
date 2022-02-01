@@ -22,12 +22,14 @@ class Trainer(BaseTrainer):
         self.batch_size = data_loader.batch_size
         self.data_loader = data_loader
         self.valid_data_loader = valid_data_loader
+        self.len_data_loader = len(self.data_loader)
+        self.len_valid_data_loader = len(self.valid_data_loader)
         self.valid = True if self.valid_data_loader is not None else False
         self.log_step = int(np.sqrt(self.batch_size))
         self.toolbox = toolbox
         self.labelConverter = strLabelConverter(keys)
 
-    def _to_tensor(self, *tensors):
+    def _to_device(self, *tensors):
         t = []
         for __tensors in tensors:
             t.append(__tensors.to(self.device))
@@ -61,17 +63,14 @@ class Trainer(BaseTrainer):
         value_error = 0.0
         for batch_idx, gt in enumerate(self.data_loader):
             try:
-                image_files, image, score_map, geo_map, training_mask, transcriptions, boxes, mapping = gt
-                image, score_map, geo_map, training_mask = self._to_tensor(image, score_map, geo_map, training_mask)
-
-                # import cv2
-                # for i in range(img.shape[0]):
-                #     image = img[i]
-                #     for tt, bb in zip(transcripts[i], boxes[i]):
-                #         show_box(image.permute(1, 2, 0).detach().cpu().numpy()[:,:, ::-1].astype(np.uint8).copy(), bb, tt)
+                # image_files, image, score_map, geo_map, training_mask, transcriptions, boxes, mapping = gt
+                # image, score_map, geo_map, training_mask = self._to_device(image, score_map, geo_map, training_mask)
+                image_files, image, score_map, training_mask, transcriptions, boxes, mapping = gt
+                image, score_map, training_mask = self._to_device(image, score_map, training_mask)
 
                 self.optimizer.zero_grad()
-                pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
+                # pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
+                pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
                 #import pdb; pdb.set_trace()
                 transcriptions = transcriptions[indices]
                 pred_boxes = pred_boxes[indices]
@@ -83,7 +82,8 @@ class Trainer(BaseTrainer):
                 label_lengths = label_lengths.to(self.device)
                 recog = (labels, label_lengths)
 
-                iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
+                # iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
+                iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
                 loss = iou_loss + cls_loss + reg_loss
                 loss.backward()
                 self.optimizer.step()
@@ -100,25 +100,13 @@ class Trainer(BaseTrainer):
                         pred_transcriptions.append(t)
                     pred_transcriptions = np.array(pred_transcriptions)
 
-                if epoch % self.save_freq == 0 and batch_idx == 0:
-                    image_grid = torchvision.utils.make_grid(image)
-                    score_map_grid = torchvision.utils.make_grid(score_map)
-                    pred_score_map_grid = torchvision.utils.make_grid(pred_score_map)
-                    step = epoch * len(self.data_loader) + batch_idx
-                    gt_transriptions_str =  ' '.join(transcriptions)
-                    pred_transcriptions_str = ' '.join(pred_transcriptions)
-                    self.summary_writer.add_image('images', image_grid, step)
-                    self.summary_writer.add_image('gt_masks', score_map_grid, step)
-                    self.summary_writer.add_image('pred_masks', pred_score_map_grid, step)
-                    self.summary_writer.add_text('gt_transcriptions', gt_transriptions_str, step)
-                    self.summary_writer.add_text('pred_transcriptions', pred_transcriptions_str, step)
+                if batch_idx == 0:
+                    print('Training gt transcriptions:', transcriptions)
+                    print('Training pred transcriptions:', pred_transcriptions)
 
                 gt_fns = pred_fns
-                print('PRED TRANSCRIPTIONS', pred_transcriptions)
-                print('GT TRANSCRIPTIONS', transcriptions)
                 total_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, pred_fns),
                                                         (boxes, transcriptions, gt_fns))
-                # print('TOTAL METRICS', total_metrics)
 
                 ## Transcripton accuracy
                 text_accuracy += np.mean(transcriptions == pred_transcriptions)
@@ -131,7 +119,7 @@ class Trainer(BaseTrainer):
                         tr_value = int(tr1) + int(tr2) / 100.0
                         pred_tr1, pred_tr2 = pred_tr.split(',')
                         pred_tr_value = int(pred_tr1) + int(pred_tr2) / 100.0
-                        batch_value_error += abs(tr_value - pred_tr_value) / (tr_value)
+                        batch_value_error += abs(tr_value - pred_tr_value) / (tr_value + 1e-10)
                     value_error += (batch_value_error / len(transcriptions))
                 except ValueError:
                     value_error += 1.0
@@ -140,20 +128,20 @@ class Trainer(BaseTrainer):
                     self.logger.info('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
                         epoch,
                         batch_idx * self.data_loader.batch_size,
-                        len(self.data_loader) * self.data_loader.batch_size,
-                        100.0 * batch_idx / len(self.data_loader),
+                        self.len_data_loader * self.data_loader.batch_size,
+                        100.0 * batch_idx / self.len_data_loader,
                         loss.item(), iou_loss.item(), cls_loss.item(), reg_loss.item()))
-            except:
-                print('Training failed')
+            except Exception as e:
+                print(e, 'Training failed')
                 raise
 
         log = {
-            'loss': total_loss / len(self.data_loader),
-            'precision': total_metrics[0] / len(self.data_loader),
-            'recall': total_metrics[1] / len(self.data_loader),
-            'hmean': total_metrics[2] / len(self.data_loader),
-            'text_accuracy': text_accuracy / len(self.data_loader),
-            'value_error': value_error / len(self.data_loader)
+            'loss': total_loss / self.len_data_loader,
+            'precision': total_metrics[0] / self.len_data_loader,
+            'recall': total_metrics[1] / self.len_data_loader,
+            'hmean': total_metrics[2] / self.len_data_loader,
+            'text_accuracy': text_accuracy / self.len_data_loader,
+            'value_error': value_error / self.len_data_loader
         }
 
         if self.valid:
@@ -173,29 +161,36 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         total_val_metrics = np.zeros(3)
+        total_loss = 0
+        total_val_metrics = np.zeros(3) # precision, recall, hmean
+        text_accuracy = 0.0
+        value_error = 0.0
         with torch.no_grad():
             for batch_idx, gt in enumerate(self.valid_data_loader):
                 try:
-                    imagePaths, img, score_map, geo_map, training_mask, transcripts, boxes, mapping = gt
-                    img, score_map, geo_map, training_mask = self._to_tensor(img, score_map, geo_map, training_mask)
+                    # image_files, image, score_map, geo_map, training_mask, transcriptions, boxes, mapping = gt
+                    # image, score_map, geo_map, training_mask = self._to_device(image, score_map, geo_map, training_mask)
+                    image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
+                    image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
 
-                    pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(img, boxes, mapping)
-                    transcripts = transcripts[indices]
+                    # pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
+                    pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
+                    transcriptions = transcriptions[indices]
                     pred_boxes = pred_boxes[indices]
                     pred_mapping = mapping[indices]
-                    pred_fns = [imagePaths[i] for i in pred_mapping]
+                    pred_fns = [image_files[i] for i in pred_mapping]
 
-                    labels, label_lengths = self.labelConverter.encode(transcripts.tolist())
+                    labels, label_lengths = self.labelConverter.encode(transcriptions.tolist())
                     labels = labels.to(self.device)
                     label_lengths = label_lengths.to(self.device)
                     recog = (labels, label_lengths)
 
-                    pred_transcripts = []
+                    pred_transcriptions = []
                     pred_fns = []
                     if len(pred_mapping) > 0:
                         pred_mapping = pred_mapping[indices]
                         pred_boxes = pred_boxes[indices]
-                        pred_fns = [imagePaths[i] for i in pred_mapping]
+                        pred_fns = [image_files[i] for i in pred_mapping]
 
                         pred, lengths = pred_recog
                         _, pred = pred.max(2)
@@ -203,30 +198,69 @@ class Trainer(BaseTrainer):
                             l = lengths[i]
                             p = pred[:l, i]
                             t = self.labelConverter.decode(p, l)
-                            pred_transcripts.append(t)
-                        pred_transcripts = np.array(pred_transcripts)
+                            pred_transcriptions.append(t)
+                        pred_transcriptions = np.array(pred_transcriptions)
 
-                    iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
+                    if batch_idx == 0:
+                        print('Validation gt transcriptions:', transcriptions)
+                        print('Validation pred transcriptions:', pred_transcriptions)
+
+                    ## Write summary writer images and text
+                    if epoch % self.save_freq == 0 and batch_idx == 0:
+                        image_grid = torchvision.utils.make_grid(_image.double())
+                        score_map_grid = torchvision.utils.make_grid(score_map.double())
+                        pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
+                        step = epoch * self.len_valid_data_loader + batch_idx
+                        gt_transriptions_str =  ' '.join(transcriptions)
+                        pred_transcriptions_str = ' '.join(pred_transcriptions)
+                        self.summary_writer.add_image('images', image_grid, step)
+                        self.summary_writer.add_image('gt_masks', score_map_grid, step)
+                        self.summary_writer.add_image('pred_masks', pred_score_map_grid, step)
+                        self.summary_writer.add_text('gt_transcriptions', gt_transriptions_str, step)
+                        self.summary_writer.add_text('pred_transcriptions', pred_transcriptions_str, step)
+
+                    # iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
+                    iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
                     loss = iou_loss + cls_loss + reg_loss
+                    total_loss += loss.item()
 
-                    gt_fns = [imagePaths[i] for i in mapping]
-                    total_val_metrics += self._eval_metrics((pred_boxes, pred_transcripts, pred_fns),
-                                                            (boxes, transcripts, gt_fns))
+                    gt_fns = [image_files[i] for i in mapping]
+                    total_val_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, pred_fns),
+                                                            (boxes, transcriptions, gt_fns))
+
+                    ## Transcripton accuracy
+                    text_accuracy += np.mean(transcriptions == pred_transcriptions)
+
+                    ## Value error
+                    try:
+                        batch_value_error = 0.0
+                        for tr, pred_tr in zip(transcriptions, pred_transcriptions):
+                            tr1, tr2 = tr.split(',')
+                            tr_value = int(tr1) + int(tr2) / 100.0
+                            pred_tr1, pred_tr2 = pred_tr.split(',')
+                            pred_tr_value = int(pred_tr1) + int(pred_tr2) / 100.0
+                            batch_value_error += abs(tr_value - pred_tr_value) / (tr_value + 1e-10)
+                        value_error += (batch_value_error / len(transcriptions))
+                    except ValueError:
+                        value_error += 1.0
 
                     if self.verbosity >= 2 and batch_idx % self.log_step == 0:
                         self.logger.info('Val Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
                             epoch,
                             batch_idx * self.data_loader.batch_size,
-                            len(self.data_loader) * self.data_loader.batch_size,
-                            100.0 * batch_idx / len(self.data_loader),
+                            self.len_valid_data_loader * self.valid_data_loader.batch_size,
+                            100.0 * batch_idx / self.len_valid_data_loader,
                             loss.item(), iou_loss.item(), cls_loss.item(), reg_loss.item()))
 
-                except:
-                    print('Validation failed')
+                except Exception as e:
+                    print(e, 'Validation failed')
                     # raise
 
         return {
-            'val_precision': total_val_metrics[0] / len(self.valid_data_loader),
-            'val_recall': total_val_metrics[1] / len(self.valid_data_loader),
-            'val_hmean': total_val_metrics[2] / len(self.valid_data_loader)
+            'val_loss': total_loss / self.len_valid_data_loader,
+            'val_precision': total_val_metrics[0] / self.len_valid_data_loader,
+            'val_recall': total_val_metrics[1] / self.len_valid_data_loader,
+            'val_hmean': total_val_metrics[2] / self.len_valid_data_loader,
+            'val_text_accuracy': text_accuracy / self.len_valid_data_loader,
+            'val_value_error': value_error / self.len_valid_data_loader
         }
