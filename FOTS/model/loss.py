@@ -1,4 +1,3 @@
-### 此处默认真实值和预测值的格式均为 bs * W * H * channels
 import torch
 import torch.nn as nn
 from torch.nn import CTCLoss
@@ -19,22 +18,6 @@ class DetectionLoss(nn.Module):
         # scale classification loss to match the iou loss part
         classification_loss *= 0.01
 
-        # # d1 -> top, d2->right, d3->bottom, d4->left
-        # #     d1_gt, d2_gt, d3_gt, d4_gt, theta_gt = tf.split(value=y_true_geo, num_or_size_splits=5, axis=3)
-        # d1_gt, d2_gt, d3_gt, d4_gt, theta_gt = torch.split(y_true_geo, 1, 1)
-        # #     d1_pred, d2_pred, d3_pred, d4_pred, theta_pred = tf.split(value=y_pred_geo, num_or_size_splits=5, axis=3)
-        # d1_pred, d2_pred, d3_pred, d4_pred, theta_pred = torch.split(y_pred_geo, 1, 1)
-        # area_gt = (d1_gt + d3_gt) * (d2_gt + d4_gt)
-        # area_pred = (d1_pred + d3_pred) * (d2_pred + d4_pred)
-        # w_union = torch.min(d2_gt, d2_pred) + torch.min(d4_gt, d4_pred)
-        # h_union = torch.min(d1_gt, d1_pred) + torch.min(d3_gt, d3_pred)
-        # area_intersect = w_union * h_union
-        # area_union = area_gt + area_pred - area_intersect
-        # L_AABB = -torch.log((area_intersect + 1.0) / (area_union + 1.0))
-        # L_theta = 1 - torch.cos(theta_pred - theta_gt)
-        # L_g = L_AABB + 20 * L_theta
-
-        # return torch.mean(L_g * y_true_cls * training_mask), classification_loss
         return torch.mean(y_true_cls * training_mask), classification_loss
 
     def __dice_coefficient(self, y_true_cls, y_pred_cls,
@@ -62,7 +45,7 @@ class RecognitionLoss(nn.Module):
 
     def __init__(self):
         super(RecognitionLoss, self).__init__()
-        self.ctc_loss = CTCLoss() # pred, pred_len, labels, labels_len
+        self.ctc_loss = CTCLoss(reduction='mean', zero_infinity=True) # pred, pred_len, labels, labels_len
 
     def forward(self, *input):
         gt, pred = input[0], input[1]

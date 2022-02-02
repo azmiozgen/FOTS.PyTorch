@@ -20,6 +20,8 @@ class FOTSModel:
         self.score_map_threshold = config['model']['score_map_threshold']
 
         bbNet =  pm.__dict__['resnet50'](pretrained='imagenet') # resnet50 in paper
+        # bbNet =  pm.__dict__['resnet34'](pretrained='imagenet')
+        # bbNet =  pm.__dict__['resnet18'](pretrained='imagenet')
         self.sharedConv = shared_conv.SharedConv(bbNet, config)
 
         nclass = len(keys) + 1
@@ -140,7 +142,8 @@ class Recognizer(BaseModel):
 
     def __init__(self, nclass, config):
         super().__init__(config)
-        self.crnn = CRNN(8, 32, nclass, 256)
+        dropout = self.config['model']['dropout']
+        self.crnn = CRNN(8, 32, nclass, 256, dropout=dropout)
 
     def forward(self, rois, lengths):
         return self.crnn(rois, lengths)
@@ -150,7 +153,12 @@ class Detector(BaseModel):
 
     def __init__(self, config):
         super().__init__(config)
-        self.scoreMap = nn.Conv2d(32, 1, kernel_size = 1)
+        dropout = self.config['model']['dropout']
+        # self.scoreMap = nn.Conv2d(32, 1, kernel_size = 1)
+        self.scoreMap = nn.Sequential(
+            nn.Conv2d(32, 1, kernel_size=1),
+            nn.Dropout2d(dropout, inplace=True),
+        )
         # self.geoMap = nn.Conv2d(32, 4, kernel_size = 1)
         # self.angleMap = nn.Conv2d(32, 1, kernel_size = 1)
         self.input_size = config['data_loader']['input_size']

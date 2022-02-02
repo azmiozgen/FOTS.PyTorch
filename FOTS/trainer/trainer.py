@@ -57,7 +57,7 @@ class Trainer(BaseTrainer):
         """
         self.model.train()
 
-        total_loss = 0
+        total_loss, total_iou_loss, total_cls_loss, total_rec_loss = 0, 0, 0, 0
         total_metrics = np.zeros(3) # precision, recall, hmean
         text_accuracy = 0.0
         value_error = 0.0
@@ -82,13 +82,15 @@ class Trainer(BaseTrainer):
                 label_lengths = label_lengths.to(self.device)
                 recog = (labels, label_lengths)
 
-                # iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
-                iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
-                loss = iou_loss + cls_loss + reg_loss
+                iou_loss, cls_loss, rec_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
+                loss = iou_loss + cls_loss + rec_loss
                 loss.backward()
                 self.optimizer.step()
 
                 total_loss += loss.item()
+                total_iou_loss += iou_loss.item()
+                total_cls_loss += cls_loss.item()
+                total_rec_loss += rec_loss.item()
                 pred_transcriptions = []
                 if len(pred_mapping) > 0:
                     pred, lengths = pred_recog
@@ -124,19 +126,23 @@ class Trainer(BaseTrainer):
                 except ValueError:
                     value_error += 1.0
 
-                if self.verbosity >= 2 and batch_idx % self.log_step == 0:
-                    self.logger.info('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
-                        epoch,
-                        batch_idx * self.data_loader.batch_size,
-                        self.len_data_loader * self.data_loader.batch_size,
-                        100.0 * batch_idx / self.len_data_loader,
-                        loss.item(), iou_loss.item(), cls_loss.item(), reg_loss.item()))
             except Exception as e:
                 print(e, 'Training failed')
                 raise
 
+        avg_loss = total_loss / self.len_data_loader
+        if self.verbosity >= 2:
+            avg_iou_loss = total_iou_loss / self.len_data_loader
+            avg_cls_loss = total_cls_loss / self.len_data_loader
+            avg_rec_loss = total_rec_loss / self.len_data_loader
+            self.logger.info(\
+                'Train: Epoch: {} [{} samples] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                    epoch,
+                    len(self.data_loader.dataset),
+                    avg_loss, avg_iou_loss, avg_cls_loss, avg_rec_loss))
+
         log = {
-            'loss': total_loss / self.len_data_loader,
+            'loss': avg_loss,
             'precision': total_metrics[0] / self.len_data_loader,
             'recall': total_metrics[1] / self.len_data_loader,
             'hmean': total_metrics[2] / self.len_data_loader,
@@ -161,7 +167,7 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         total_val_metrics = np.zeros(3)
-        total_loss = 0
+        total_loss, total_iou_loss, total_cls_loss, total_rec_loss = 0, 0, 0, 0
         total_val_metrics = np.zeros(3) # precision, recall, hmean
         text_accuracy = 0.0
         value_error = 0.0
@@ -219,10 +225,12 @@ class Trainer(BaseTrainer):
                         self.summary_writer.add_text('gt_transcriptions', gt_transriptions_str, step)
                         self.summary_writer.add_text('pred_transcriptions', pred_transcriptions_str, step)
 
-                    # iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, geo_map, pred_geo_map, recog, pred_recog, training_mask)
-                    iou_loss, cls_loss, reg_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
-                    loss = iou_loss + cls_loss + reg_loss
+                    iou_loss, cls_loss, rec_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
+                    loss = iou_loss + cls_loss + rec_loss
                     total_loss += loss.item()
+                    total_iou_loss += iou_loss.item()
+                    total_cls_loss += cls_loss.item()
+                    total_rec_loss += rec_loss.item()
 
                     gt_fns = [image_files[i] for i in mapping]
                     total_val_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, pred_fns),
@@ -241,23 +249,26 @@ class Trainer(BaseTrainer):
                             pred_tr_value = int(pred_tr1) + int(pred_tr2) / 100.0
                             batch_value_error += abs(tr_value - pred_tr_value) / (tr_value + 1e-10)
                         value_error += (batch_value_error / len(transcriptions))
-                    except ValueError:
+                    except:
                         value_error += 1.0
-
-                    if self.verbosity >= 2 and batch_idx % self.log_step == 0:
-                        self.logger.info('Val Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
-                            epoch,
-                            batch_idx * self.data_loader.batch_size,
-                            self.len_valid_data_loader * self.valid_data_loader.batch_size,
-                            100.0 * batch_idx / self.len_valid_data_loader,
-                            loss.item(), iou_loss.item(), cls_loss.item(), reg_loss.item()))
 
                 except Exception as e:
                     print(e, 'Validation failed')
                     # raise
 
+        avg_loss = total_loss / self.len_valid_data_loader
+        if self.verbosity >= 2:
+            avg_iou_loss = total_iou_loss / self.len_valid_data_loader
+            avg_cls_loss = total_cls_loss / self.len_valid_data_loader
+            avg_rec_loss = total_rec_loss / self.len_valid_data_loader
+            self.logger.info(\
+                'Val: Epoch: {} [{} samples] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                    epoch,
+                    len(self.valid_data_loader.dataset),
+                    avg_loss, avg_iou_loss, avg_cls_loss, avg_rec_loss))
+
         return {
-            'val_loss': total_loss / self.len_valid_data_loader,
+            'val_loss': avg_loss,
             'val_precision': total_val_metrics[0] / self.len_valid_data_loader,
             'val_recall': total_val_metrics[1] / self.len_valid_data_loader,
             'val_hmean': total_val_metrics[2] / self.len_valid_data_loader,

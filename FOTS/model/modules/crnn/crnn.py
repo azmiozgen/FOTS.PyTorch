@@ -3,9 +3,9 @@ import torch
 
 class BidirectionalLSTM(nn.Module):
 
-    def __init__(self, nIn, nHidden, nOut):
+    def __init__(self, nIn, nHidden, nOut, dropout=0.5):
         super(BidirectionalLSTM, self).__init__()
-        self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True)
+        self.rnn = nn.LSTM(nIn, nHidden, dropout=dropout, bidirectional=True)
         self.embedding = nn.Linear(nHidden * 2, nOut)
 
     def forward(self, input, lengths):
@@ -36,7 +36,7 @@ class HeightMaxPool(nn.Module):
 
 class CRNN(nn.Module):
 
-    def __init__(self, imgH, nc, nclass, nh, leakyRelu=False):
+    def __init__(self, imgH, nc, nclass, nh, leakyRelu=False, dropout=0.5):
         super(CRNN, self).__init__()
 
         ks = [3, 3, 3, 3, 3, 3]
@@ -70,7 +70,7 @@ class CRNN(nn.Module):
         cnn.add_module('HeightMaxPooling{0}'.format(2), HeightMaxPool())
 
         self.cnn = cnn
-        self.rnn = BidirectionalLSTM(256, nh, nclass)
+        self.rnn = BidirectionalLSTM(256, nh, nclass, dropout=dropout)
 
     def forward(self, input, lengths):
         # conv features

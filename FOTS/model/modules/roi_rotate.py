@@ -51,7 +51,7 @@ class ROIRotate(nn.Module):
             mapped_x1, mapped_y1 = (0, 0)
             mapped_x4, mapped_y4 = (0, self.height)
 
-            width_box = math.ceil(self.height * box_w / box_h)
+            width_box = math.ceil(self.height * box_w / (box_h + 1e-10))
             width_box = min(width_box, width) # not to exceed feature map's width
             max_width = width_box if width_box > max_width else max_width
 
@@ -123,11 +123,9 @@ class ROIRotate(nn.Module):
 
         theta = np.zeros([2, 3])
         theta[0, 0] = param[0, 0]
-        theta[0, 1] = param[0, 1] * h / w
-        theta[0, 2] = param[0, 2] * 2 / w + theta[0, 0] + theta[0, 1] - 1
-        theta[1, 0] = param[1, 0] * w / h
+        theta[0, 1] = param[0, 1] * h / (w + 1e-10)
+        theta[0, 2] = param[0, 2] * 2 / (w + 1e-10) + theta[0, 0] + theta[0, 1] - 1
+        theta[1, 0] = param[1, 0] * w / (h + 1e-10)
         theta[1, 1] = param[1, 1]
-        theta[1, 2] = param[1, 2] * 2 / h + theta[1, 0] + theta[1, 1] - 1
+        theta[1, 2] = param[1, 2] * 2 / (h + 1e-10) + theta[1, 0] + theta[1, 1] - 1
         return theta
-
-

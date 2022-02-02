@@ -2,11 +2,7 @@ import argparse
 import json
 import logging
 import os
-import pathlib
 
-from numpy import require
-
-from FOTS.data_loader import ICDAR
 from FOTS.logger import Logger
 from FOTS.model.model import *
 from FOTS.model.loss import *
@@ -20,20 +16,7 @@ logging.basicConfig(level=logging.INFO, format='')
 def main(config, resume):
     train_logger = Logger()
 
-    if config['data_loader']['dataset'] == 'icdar2015':
-        from FOTS.data_loader import OCRDataLoaderFactory
-        # ICDAR 2015
-        data_root = pathlib.Path(config['data_loader']['data_dir'])
-        ICDARDataset2015 = ICDAR(data_root, year='2015')
-        data_loader = OCRDataLoaderFactory(config, ICDARDataset2015)
-        train = data_loader.train()
-        val = data_loader.val()
-    elif config['data_loader']['dataset'] == 'synth800k':
-        from FOTS.data_loader import SynthTextDataLoaderFactory
-        data_loader = SynthTextDataLoaderFactory(config)
-        train = data_loader.train()
-        val = data_loader.val()
-    elif config['data_loader']['dataset'] == 'json':
+    if config['data_loader']['dataset'] == 'price_tag':
         from FOTS.data_loader import PriceTagDataLoaderFactory
         data_loader = PriceTagDataLoaderFactory(config)
         train = data_loader.train()

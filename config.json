@@ -3,12 +3,12 @@
     "cuda": true,
     "gpus": [0],
     "data_loader": {
-        "dataset":"json",
-        "data_dirname": "price_tag",
-        "input_size": 512,
-        "batch_size": 4,
+        "dataset":"price_tag",
+        "data_dirname": "price_tag_small",
+        "input_size": 256,
+        "batch_size": 32,
         "shuffle": true,
-        "workers": 4
+        "workers": 8
     },
     "validation": {
         "validation_split": 0,
@@ -20,16 +20,20 @@
             "gamma": 0.94
     },
  
-    "optimizer_type": "Adam",
+    "optimizer_type": "AdamW",
     "optimizer": {
-        "lr": 0.0001
+        "lr" : 0.0001,
+        "betas" : [0.9, 0.999],
+        "eps" : 1e-8,
+        "weight_decay" : 0.0001,
+        "amsgrad" : false
     },
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 500,
+        "epochs": 1,
         "save_dir": "saved/",
-        "save_freq": 50,
+        "save_freq": 20,
         "verbosity": 2,
         "monitor": "hmean",
         "monitor_mode": "max"
@@ -37,6 +41,7 @@
     "arch": "FOTSModel",
     "model": {
         "mode": "united",
-        "score_map_threshold" : 0.5
+        "score_map_threshold" : 0.5,
+        "dropout" : 0.8
     }
 }
