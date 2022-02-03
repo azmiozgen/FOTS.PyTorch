@@ -23,13 +23,28 @@ class SharedConv(BaseModel):
         # Feature-merging branch
         # self.toplayer = nn.Conv2d(2048, 256, kernel_size = 1, stride = 1, padding = 0)  # Reduce channels
 
-        self.mergeLayers0 = DummyLayer()
+        # ## ResNet-50
+        # self.mergeLayers0 = DummyLayer()                                 ## B x 2048 x H / 32 x W / 32
+        # self.mergeLayers1 = HLayer(2048 + 1024, 128)                     ## B x 128 x H / 32 x W / 32
+        # self.mergeLayers2 = HLayer(128 + 512, 64)                        ## B x 64 x H / 32 x W / 32
+        # self.mergeLayers3 = HLayer(64 + 256, 32)                         ## B x 32 x H / 32 x W / 32
+        # self.mergeLayers4 = nn.Conv2d(32, 32, kernel_size=3, padding=1)  ## B x 32 x H / 32 x W / 32
+        # self.bn5 = nn.BatchNorm2d(32, momentum=0.003)
 
-        self.mergeLayers1 = HLayer(2048 + 1024, 128)
-        self.mergeLayers2 = HLayer(128 + 512, 64)
-        self.mergeLayers3 = HLayer(64 + 256, 32)
+        # # ResNet-34
+        # self.mergeLayers0 = DummyLayer()                                   ## B x 512 x H / 32 x W / 32
+        # self.mergeLayers1 = HLayer(512 + 256, 128)                         ## B x 128 x H / 32 x W / 32
+        # self.mergeLayers2 = HLayer(128 + 128, 64)                          ## B x 64 x H / 32 x W / 32
+        # self.mergeLayers3 = HLayer(64 + 64, 32)                            ## B x 32 x H / 32 x W / 32
+        # self.mergeLayers4 = nn.Conv2d(32, 32, kernel_size=3, padding=1)    ## B x 128 x H / 32 x W / 32
+        # self.bn5 = nn.BatchNorm2d(32, momentum=0.003)
 
-        self.mergeLayers4 = nn.Conv2d(32, 32, kernel_size = 3, padding = 1)
+        # ResNet-18
+        self.mergeLayers0 = DummyLayer()                                   ## B x 512 x H / 32 x W / 32
+        self.mergeLayers1 = HLayer(512 + 256, 128)                         ## B x 128 x H / 32 x W / 32
+        self.mergeLayers2 = HLayer(128 + 128, 64)                          ## B x 64 x H / 32 x W / 32
+        self.mergeLayers3 = HLayer(64 + 64, 32)                            ## B x 32 x H / 32 x W / 32
+        self.mergeLayers4 = nn.Conv2d(32, 32, kernel_size=3, padding=1)    ## B x 128 x H / 32 x W / 32
         self.bn5 = nn.BatchNorm2d(32, momentum=0.003)
 
         # Output Layer
@@ -42,49 +57,44 @@ class SharedConv(BaseModel):
 
         # bottom up
 
-        f = self.__foward_backbone(input)
+        f = self.__forward_backbone(input)
 
         g = [None] * 4
         h = [None] * 4
 
         # i = 1
-        h[0] = self.mergeLayers0(f[0])
-        g[0] = self.__unpool(h[0])
+        h[0] = self.mergeLayers0(f[0])   ## H / 32 x W / 32
+        # print('h[0]', h[0].shape)
+        g[0] = self.__unpool(h[0])       ## H / 16 x W / 16
+        # print('g[0]', g[0].shape)
 
         # i = 2
-        h[1] = self.mergeLayers1(g[0], f[1])
-        g[1] = self.__unpool(h[1])
+        h[1] = self.mergeLayers1(g[0], f[1])  ## H / 16 x W / 16
+        # print('h[1]', h[1].shape)
+        g[1] = self.__unpool(h[1])            ## H / 8 x W / 8
+        # print('g[1]', g[1].shape)
 
         # i = 3
-        h[2] = self.mergeLayers2(g[1], f[2])
-        g[2] = self.__unpool(h[2])
+        h[2] = self.mergeLayers2(g[1], f[2])  ## H / 4 x W / 4
+        # print('h[2]', h[2].shape)
+        g[2] = self.__unpool(h[2])            ## H / 4 x W / 4
+        # print('g[2]', g[2].shape)
 
         # i = 4
-        h[3] = self.mergeLayers3(g[2], f[3])
-        #g[3] = self.__unpool(h[3])
+        h[3] = self.mergeLayers3(g[2], f[3])  ## H / 4 x W / 4
+        # print('h[3]', h[3].shape)
+        g[3] = self.__unpool(h[3])
+        # print('g[3]', g[3].shape)
 
         # final stage
-        final = self.mergeLayers4(h[3])
+        final = self.mergeLayers4(h[3])       ## H / 4 x W / 4
+        # print('final', final.shape)
         final = self.bn5(final)
         final = F.relu(final)
 
-        # score = self.scoreMap(final)
-        # score = torch.sigmoid(score)
-        #
-        # geoMap = self.geoMap(final)
-        # # 出来的是 normalise 到 0 -1 的值是到上下左右的距离，但是图像他都缩放到  512 * 512 了，但是 gt 里是算的绝对数值来的
-        # geoMap = torch.sigmoid(geoMap) * 512
-        #
-        # angleMap = self.angleMap(final)
-        # angleMap = (torch.sigmoid(angleMap) - 0.5) * math.pi / 2
-        #
-        # geometry = torch.cat([geoMap, angleMap], dim = 1)
-        #
-        # return score, geometry
-
         return final
 
-    def __foward_backbone(self, input):
+    def __forward_backbone(self, input):
         conv2 = None
         conv3 = None
         conv4 = None
@@ -106,7 +116,7 @@ class SharedConv(BaseModel):
 
     def __unpool(self, input):
         _, _, H, W = input.shape
-        return F.interpolate(input, mode = 'bilinear', scale_factor = 2, align_corners = True)
+        return F.interpolate(input, mode='bilinear', scale_factor=2, align_corners=True)
 
     def __mean_image_subtraction(self, images, means = [123.68, 116.78, 103.94]):
         '''
@@ -140,14 +150,14 @@ class HLayer(nn.Module):
         """
         super(HLayer, self).__init__()
 
-        self.conv2dOne = nn.Conv2d(inputChannels, outputChannels, kernel_size = 1)
+        self.conv2dOne = nn.Conv2d(inputChannels, outputChannels, kernel_size=1)
         self.bnOne = nn.BatchNorm2d(outputChannels, momentum=0.003)
 
-        self.conv2dTwo = nn.Conv2d(outputChannels, outputChannels, kernel_size = 3, padding = 1)
+        self.conv2dTwo = nn.Conv2d(outputChannels, outputChannels, kernel_size=3, padding=1)
         self.bnTwo = nn.BatchNorm2d(outputChannels, momentum=0.003)
 
     def forward(self, inputPrevG, inputF):
-        input = torch.cat([inputPrevG, inputF], dim = 1)
+        input = torch.cat([inputPrevG, inputF], dim=1)
         output = self.conv2dOne(input)
         output = self.bnOne(output)
         output = F.relu(output)

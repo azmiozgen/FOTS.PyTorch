@@ -6,7 +6,7 @@
         "dataset":"price_tag",
         "data_dirname": "price_tag_small",
         "input_size": 256,
-        "batch_size": 32,
+        "batch_size": 8,
         "shuffle": true,
         "workers": 8
     },
@@ -31,7 +31,7 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 1,
+        "epochs": 500,
         "save_dir": "saved/",
         "save_freq": 20,
         "verbosity": 2,

@@ -23,12 +23,18 @@ class PriceTagDataLoaderFactory(BaseDataLoader):
         self.workers = self.config['data_loader']['workers']
 
     def train(self):
-        train_loader = torchdata.DataLoader(self.train_dataset, num_workers=self.num_workers, batch_size=min(len(self.train_dataset), self.batch_size),
-                                           shuffle=self.shuffle, collate_fn=collate_fn)
+        train_loader = torchdata.DataLoader(self.train_dataset,
+                num_workers=self.num_workers,
+                batch_size=min(len(self.train_dataset), self.batch_size),
+                shuffle=self.shuffle,
+                collate_fn=collate_fn)
         return train_loader
 
     def val(self):
         shuffle = self.config['validation']['shuffle']
-        val_loader = torchdata.DataLoader(self.val_dataset, num_workers=self.num_workers, batch_size=min(len(self.val_dataset), self.batch_size),
-                                         shuffle=shuffle, collate_fn=collate_fn)
+        val_loader = torchdata.DataLoader(self.val_dataset,
+                num_workers=self.num_workers,
+                batch_size=min(len(self.val_dataset), self.batch_size),
+                shuffle=shuffle,
+                collate_fn=collate_fn)
         return val_loader

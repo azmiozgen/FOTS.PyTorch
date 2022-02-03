@@ -36,7 +36,7 @@ class HeightMaxPool(nn.Module):
 
 class CRNN(nn.Module):
 
-    def __init__(self, imgH, nc, nclass, nh, leakyRelu=False, dropout=0.5):
+    def __init__(self, nc, nclass, nh, leakyRelu=False, dropout=0.5):
         super(CRNN, self).__init__()
 
         ks = [3, 3, 3, 3, 3, 3]
@@ -60,14 +60,17 @@ class CRNN(nn.Module):
                 cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
 
         convRelu(0)
-        convRelu(1)
         cnn.add_module('HeightMaxPooling{0}'.format(0), HeightMaxPool())
-        convRelu(2)
-        convRelu(3)
+        convRelu(1)
         cnn.add_module('HeightMaxPooling{0}'.format(1), HeightMaxPool())
-        convRelu(4)
-        convRelu(5)
+        convRelu(2)
         cnn.add_module('HeightMaxPooling{0}'.format(2), HeightMaxPool())
+        convRelu(3)
+        cnn.add_module('HeightMaxPooling{0}'.format(3), HeightMaxPool())
+        convRelu(4)
+        cnn.add_module('HeightMaxPooling{0}'.format(4), HeightMaxPool())
+        convRelu(5)
+        cnn.add_module('HeightMaxPooling{0}'.format(5), HeightMaxPool())
 
         self.cnn = cnn
         self.rnn = BidirectionalLSTM(256, nh, nclass, dropout=dropout)

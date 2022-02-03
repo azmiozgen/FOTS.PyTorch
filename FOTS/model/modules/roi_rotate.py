@@ -11,7 +11,7 @@ class ROIRotate(nn.Module):
     def __init__(self, height=8):
         '''
 
-        :param height: heigth of feature map after affine transformation
+        :param height: height of feature map after affine transformation
         '''
 
         super().__init__()
@@ -19,11 +19,10 @@ class ROIRotate(nn.Module):
 
     def forward(self, feature_map, boxes, mapping):
         '''
-
-        :param feature_map:  N * 128 * 128 * 32
-        :param boxes: M * 8
+        :param feature_map:  B * 128 * 128 * 32
+        :param boxes: B * 8
         :param mapping: mapping for image
-        :return: N * H * W * C
+        :return: B * H * W * C
         '''
 
         max_width = 0
@@ -35,10 +34,7 @@ class ROIRotate(nn.Module):
             feature = feature_map[img_index]  # B * H * W * C
             images.append(feature)
 
-            x1, y1, x2, y2, x3, y3, x4, y4 = box.flatten() / 4  # 521 -> 128
-
-            # show_box(feature, box / 4, 'ffffff', isFeaturemap=True)
-
+            x1, y1, x2, y2, x3, y3, x4, y4 = box.flatten() / 4
             rotated_rect = cv2.minAreaRect(np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]]))
             box_w, box_h = rotated_rect[1][0], rotated_rect[1][1]
 
@@ -63,27 +59,10 @@ class ROIRotate(nn.Module):
             ])
 
             affine_matrix = cv2.getAffineTransform(src_pts.astype(np.float32), dst_pts.astype(np.float32))
-
-            # iii = cv2.warpAffine((feature*255).permute(1,2,0).detach().cpu().numpy().astype(np.uint8),
-            #                      affine_matrix, (width, height))
-            #
-            # cv2.imshow('img', iii)
-            # cv2.waitKey()
-
-            affine_matrix = ROIRotate.param2theta(affine_matrix, width, height)
-
+            # affine_matrix = ROIRotate.param2theta(affine_matrix, width, height)
             affine_matrix *= 1e20 # cancel the error when type conversion
             affine_matrix = torch.tensor(affine_matrix, device=feature.device, dtype=torch.float)
             affine_matrix /= 1e20
-
-            # grid = torch.nn.functional.affine_grid(affine_matrix[np.newaxis], feature[np.newaxis].size())
-            # x = torch.nn.functional.grid_sample(feature[np.newaxis], grid)
-            #
-            # x = x[0].permute(1, 2, 0).detach().cpu().numpy()
-            # x = (x*255).astype(np.uint8)
-            #
-            # cv2.imshow('img', x)
-            # cv2.waitKey()
 
             matrixes.append(affine_matrix)
             boxes_width.append(width_box)

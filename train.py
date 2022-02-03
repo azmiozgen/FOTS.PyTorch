@@ -53,12 +53,12 @@ def main(config, resume):
     metrics = [eval(metric) for metric in config['metrics']]  ## precision, recall, hmean (f1)
 
     trainer = Trainer(model, loss, metrics,
-                      resume=resume,
-                      config=config,
-                      data_loader=train,
-                      valid_data_loader=val,
-                      train_logger=train_logger,
-                      toolbox=Toolbox)
+            resume=resume,
+            config=config,
+            data_loader=train,
+            valid_data_loader=val,
+            train_logger=train_logger,
+            toolbox=Toolbox)
 
     trainer.train()
 

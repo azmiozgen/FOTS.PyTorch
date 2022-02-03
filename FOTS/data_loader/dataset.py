@@ -1,12 +1,9 @@
 import glob
-from itertools import compress
 import logging
-import pathlib
 
 from .datautils import *
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import scipy.io as sio
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)

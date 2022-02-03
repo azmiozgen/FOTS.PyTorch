@@ -19,9 +19,9 @@ class FOTSModel:
         self.mode = config['model']['mode']
         self.score_map_threshold = config['model']['score_map_threshold']
 
-        bbNet =  pm.__dict__['resnet50'](pretrained='imagenet') # resnet50 in paper
+        # bbNet =  pm.__dict__['resnet50'](pretrained='imagenet') # resnet50 in paper
         # bbNet =  pm.__dict__['resnet34'](pretrained='imagenet')
-        # bbNet =  pm.__dict__['resnet18'](pretrained='imagenet')
+        bbNet =  pm.__dict__['resnet18'](pretrained='imagenet')
         self.sharedConv = shared_conv.SharedConv(bbNet, config)
 
         nclass = len(keys) + 1
@@ -97,25 +97,22 @@ class FOTSModel:
             device = torch.device('cpu')
 
         feature_map = self.sharedConv.forward(image)
-        # score_map, geo_map = self.detector(feature_map)
         score_map = self.detector(feature_map)
 
         if self.training:
-            rois, lengths, indices = self.roirotate(feature_map, boxes[:, :8], mapping)
+            # rois, lengths, indices = self.roirotate(feature_map, boxes[:, :8], mapping)
+            boxes_norm = boxes[:, :8] / 4
+            rois, lengths, indices = self.get_cropped_padded_features(feature_map, boxes_norm)
             pred_mapping = mapping
             pred_boxes = boxes
         else:
             score = score_map.permute(0, 2, 3, 1)
-            # geometry = geo_map.permute(0, 2, 3, 1)
             score = score.detach().cpu().numpy()
-            # geometry = geometry.detach().cpu().numpy()
 
             pred_boxes = []
             pred_mapping = []
             for i in range(score.shape[0]):
                 s = score[i, :, :, 0]
-                # g = geometry[i, :, :, :]
-                # bb, _ = Toolbox.detect(score_map=s, geo_map=g, timer=timer)
                 bb = Toolbox.detect(score_map=s, score_map_thresh=self.score_map_threshold)
 
                 # pred_mapping.append(np.array([i] * bb_size))
@@ -125,7 +122,15 @@ class FOTSModel:
             if len(pred_mapping) > 0:
                 pred_boxes = np.array(pred_boxes).astype(np.float32)
                 pred_mapping = np.array(pred_mapping)
-                rois, lengths, indices = self.roirotate(feature_map, pred_boxes[:, :8], pred_mapping)
+                # print('FEATURE MAP', feature_map.shape)
+                # print('PRED BOXES', pred_boxes.shape)
+                # print('PRED MAPPING', pred_mapping.shape)
+                # rois, lengths, indices = self.roirotate(feature_map, pred_boxes[:, :8], pred_mapping)
+                pred_boxes_norm = pred_boxes[:, :8] / 4
+                rois, lengths, indices = self.get_cropped_padded_features(feature_map, pred_boxes_norm)
+                # print('ROIS', rois.shape)
+                # print('LENGTHS', lengths.shape, lengths)
+                # print('INDICES', indices.shape, indices)
             else:
                 # return score_map, geo_map, (None, None), pred_boxes, pred_mapping, None
                 return score_map, (None, None), pred_boxes, pred_mapping, None
@@ -137,13 +142,43 @@ class FOTSModel:
         # return score_map, geo_map, (preds, lengths), pred_boxes, pred_mapping, indices
         return score_map, (preds, lengths), pred_boxes, pred_mapping, indices
 
+    def get_cropped_padded_features(self, feature_map, boxes, ):
+        '''
+        feature_map: B, C, H, W
+        boxes: B, 8 (x1, y1, x2, y2, x3, y3, x4, y4)
+        pred_mapping: B
+        '''
+        n_batches = feature_map.shape[0]
+        boxes = boxes.astype(np.int)
+
+        ## Get max height and width in boxes
+        max_height = feature_map.shape[2]
+        max_width = max(boxes[:, 2] - boxes[:, 0])
+        cropped_padded_features = []
+
+        for i in range(n_batches):
+            w = boxes[i, 2] - boxes[i, 0]
+            h = boxes[i, 5] - boxes[i, 1]
+            cropped_feature = feature_map[i, :, boxes[i, 1]:boxes[i, 5], boxes[i, 0]:boxes[i, 2]] # [B, :, y1:y3, x1:x2]
+            cropped_feature = nn.ZeroPad2d((0, max(0, max_width - w), 0, max(0, max_height - h)))(cropped_feature)
+            cropped_padded_features.append(cropped_feature)
+        cropped_padded_features = torch.stack(cropped_padded_features, dim=0)
+        # print('CROPPED PADDED FEATURES', cropped_padded_features.shape)
+
+        lengths = boxes[:, 2] - boxes[:, 0]
+        indices = np.argsort(lengths) # sort images by its width cause pack padded tensor needs it
+        indices = indices[::-1].copy() # descending order
+        lengths = lengths[indices]
+        cropped_padded_features = cropped_padded_features[indices]
+
+        return cropped_padded_features, lengths, indices
 
 class Recognizer(BaseModel):
 
     def __init__(self, nclass, config):
         super().__init__(config)
         dropout = self.config['model']['dropout']
-        self.crnn = CRNN(8, 32, nclass, 256, dropout=dropout)
+        self.crnn = CRNN(32, nclass, 256, dropout=dropout)
 
     def forward(self, rois, lengths):
         return self.crnn(rois, lengths)

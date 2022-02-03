@@ -63,13 +63,10 @@ class Trainer(BaseTrainer):
         value_error = 0.0
         for batch_idx, gt in enumerate(self.data_loader):
             try:
-                # image_files, image, score_map, geo_map, training_mask, transcriptions, boxes, mapping = gt
-                # image, score_map, geo_map, training_mask = self._to_device(image, score_map, geo_map, training_mask)
                 image_files, image, score_map, training_mask, transcriptions, boxes, mapping = gt
                 image, score_map, training_mask = self._to_device(image, score_map, training_mask)
 
                 self.optimizer.zero_grad()
-                # pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
                 pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
                 #import pdb; pdb.set_trace()
                 transcriptions = transcriptions[indices]
@@ -174,12 +171,9 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             for batch_idx, gt in enumerate(self.valid_data_loader):
                 try:
-                    # image_files, image, score_map, geo_map, training_mask, transcriptions, boxes, mapping = gt
-                    # image, score_map, geo_map, training_mask = self._to_device(image, score_map, geo_map, training_mask)
                     image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
                     image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
 
-                    # pred_score_map, pred_geo_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
                     pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
                     transcriptions = transcriptions[indices]
                     pred_boxes = pred_boxes[indices]
