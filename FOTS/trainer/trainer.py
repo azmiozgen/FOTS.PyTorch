@@ -207,8 +207,8 @@ class Trainer(BaseTrainer):
 
                     ## Write summary writer images and text
                     if epoch % self.save_freq == 0 and batch_idx == 0:
-                        image_grid = torchvision.utils.make_grid(_image.double())
-                        score_map_grid = torchvision.utils.make_grid(score_map.double())
+                        image_grid = torchvision.utils.make_grid(_image.double(), normalize=True, value_range=(0, 1))
+                        score_map_grid = torchvision.utils.make_grid(score_map.double(), normalize=True, value_range=(0, 1))
                         pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
                         step = epoch * self.len_valid_data_loader + batch_idx
                         gt_transriptions_str =  ' '.join(transcriptions)
