@@ -5,7 +5,6 @@ from ..base import BaseTrainer
 from ..utils.bbox import Toolbox
 from ..model.keys import keys
 from ..utils.util import strLabelConverter
-from ..utils.util import show_box
 
 class Trainer(BaseTrainer):
     """
@@ -63,8 +62,8 @@ class Trainer(BaseTrainer):
         value_error = 0.0
         for batch_idx, gt in enumerate(self.data_loader):
             try:
-                image_files, image, score_map, training_mask, transcriptions, boxes, mapping = gt
-                image, score_map, training_mask = self._to_device(image, score_map, training_mask)
+                image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
+                image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
 
                 self.optimizer.zero_grad()
                 pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
@@ -102,6 +101,20 @@ class Trainer(BaseTrainer):
                 if batch_idx == 0:
                     print('Training gt transcriptions:', transcriptions)
                     print('Training pred transcriptions:', pred_transcriptions)
+
+                ## Write summary writer images and text
+                if epoch % self.save_freq == 0 and batch_idx == 0:
+                    image_grid = torchvision.utils.make_grid(_image.double(), normalize=True, value_range=(0, 255))
+                    score_map_grid = torchvision.utils.make_grid(score_map.double(), normalize=True, value_range=(0, 1))
+                    pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double(), normalize=True, value_range=(0, 1))
+                    step = epoch * self.len_data_loader + batch_idx
+                    gt_transriptions_str =  ' '.join(transcriptions)
+                    pred_transcriptions_str = ' '.join(pred_transcriptions)
+                    self.summary_writer.add_image('train_images', image_grid, step)
+                    self.summary_writer.add_image('train_gt_masks', score_map_grid, step)
+                    self.summary_writer.add_image('train_pred_masks', pred_score_map_grid, step)
+                    self.summary_writer.add_text('train_gt_transcriptions', gt_transriptions_str, step)
+                    self.summary_writer.add_text('train_pred_transcriptions', pred_transcriptions_str, step)
 
                 gt_fns = pred_fns
                 total_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, pred_fns),
@@ -207,17 +220,17 @@ class Trainer(BaseTrainer):
 
                     ## Write summary writer images and text
                     if epoch % self.save_freq == 0 and batch_idx == 0:
-                        image_grid = torchvision.utils.make_grid(_image.double(), normalize=True, value_range=(0, 1))
+                        image_grid = torchvision.utils.make_grid(_image.double(), normalize=True, value_range=(0, 255))
                         score_map_grid = torchvision.utils.make_grid(score_map.double(), normalize=True, value_range=(0, 1))
-                        pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
+                        pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double(), normalize=True, value_range=(0, 1))
                         step = epoch * self.len_valid_data_loader + batch_idx
                         gt_transriptions_str =  ' '.join(transcriptions)
                         pred_transcriptions_str = ' '.join(pred_transcriptions)
-                        self.summary_writer.add_image('images', image_grid, step)
-                        self.summary_writer.add_image('gt_masks', score_map_grid, step)
-                        self.summary_writer.add_image('pred_masks', pred_score_map_grid, step)
-                        self.summary_writer.add_text('gt_transcriptions', gt_transriptions_str, step)
-                        self.summary_writer.add_text('pred_transcriptions', pred_transcriptions_str, step)
+                        self.summary_writer.add_image('val_images', image_grid, step)
+                        self.summary_writer.add_image('val_gt_masks', score_map_grid, step)
+                        self.summary_writer.add_image('val_pred_masks', pred_score_map_grid, step)
+                        self.summary_writer.add_text('val_gt_transcriptions', gt_transriptions_str, step)
+                        self.summary_writer.add_text('val_pred_transcriptions', pred_transcriptions_str, step)
 
                     iou_loss, cls_loss, rec_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
                     loss = iou_loss + cls_loss + rec_loss

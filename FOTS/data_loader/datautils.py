@@ -137,6 +137,40 @@ def get_enclosing_box(corners):
     
     return final
 
+def letterbox_image(img, inp_dim):
+    '''resize image with unchanged aspect ratio using padding
+    Parameters
+    ----------
+    img : numpy.ndarray
+        Image 
+    inp_dim: tuple(int)
+        shape of the reszied image
+    Returns
+    -------
+    numpy.ndarray:
+        Resized image
+    '''
+
+    inp_dim = (inp_dim, inp_dim)
+    img_w, img_h = img.shape[1], img.shape[0]
+    w, h = inp_dim
+    new_w = int(img_w * min(w / img_w, h / img_h))
+    new_h = int(img_h * min(w / img_w, h / img_h))
+    resized_image = cv2.resize(img, (new_w, new_h))
+    canvas = np.full((inp_dim[1], inp_dim[0], 3), 0)
+
+    canvas[(h - new_h) // 2 : (h - new_h) // 2 + new_h, \
+           (w - new_w) // 2 : (w - new_w) // 2 + new_w, :] = resized_image
+    return canvas
+
+def resize(image, bbox, h, w, interpolation=cv2.INTER_NEAREST):
+    _h, _w, _ = image.shape
+    image = cv2.resize(image, dsize=(h, w), interpolation=interpolation)
+    ratio_h = h / _h
+    ratio_w = w / _w
+    bbox *= np.array([ratio_w, ratio_h, ratio_w, ratio_h])
+    return image, bbox
+
 def rotate_image(image, angle):
     """Rotate the image.
     Rotate the image such that the rotated image is enclosed inside the tightest
