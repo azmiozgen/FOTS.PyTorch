@@ -66,7 +66,8 @@ class Trainer(BaseTrainer):
                 image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
 
                 self.optimizer.zero_grad()
-                pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
+                pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
+                        self.model.forward(image_files, image, boxes, mapping)
                 #import pdb; pdb.set_trace()
                 transcriptions = transcriptions[indices]
                 pred_boxes = pred_boxes[indices]
@@ -187,7 +188,8 @@ class Trainer(BaseTrainer):
                     image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
                     image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
 
-                    pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = self.model.forward(image, boxes, mapping)
+                    pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
+                            self.model.forward(image_files, image, boxes, mapping)
                     transcriptions = transcriptions[indices]
                     pred_boxes = pred_boxes[indices]
                     pred_mapping = mapping[indices]

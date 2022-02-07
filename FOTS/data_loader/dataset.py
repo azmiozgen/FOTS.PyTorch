@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from torch.utils.data import Dataset
 
 from .datautils import (clip_box, denormalize, get_corners, get_enclosing_box,
-        letterbox_image, rotate_image, rotate_box)
+        is_bbox_ok, letterbox_image, resize, rotate_image, rotate_box)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ class PriceTagDataset(Dataset):
         self.train_mode = train_mode
 
         self.random_blur_ksize_sigma = self.config['data_loader']['random_blur_ksize_sigma']
-        print('GAUSS', type(self.random_blur_ksize_sigma))
         self.random_hsv = self.config['data_loader']['random_hsv']
         self.random_scale_factor = self.config['data_loader']['random_scale_factor']
         self.random_translate_factor = self.config['data_loader']['random_translate_factor']
@@ -115,6 +114,9 @@ class PriceTagDataset(Dataset):
         image = cv2.imread(image_file)
         h, w = image.shape[:2]
 
+        ## Decide critical bbox
+        critical = any([(b < 0.05) or (b > 0.95) for b in bbox])
+
         ## Renormalize bbox
         bbox *= np.array([w, h, w, h])
         x1, y1, x2, y2 = bbox
@@ -129,24 +131,60 @@ class PriceTagDataset(Dataset):
             image = RandomHSV(*self.random_hsv)(image)
 
             ## Random scale
-            image, bboxes = RandomScale(scale=self.random_scale_factor, diff=True)(image, bboxes)
+            if not critical:
+                try:
+                    _image, _bboxes = RandomScale(scale=self.random_scale_factor, diff=True)(image, bboxes)
+                    if all([is_bbox_ok(bbox) for bbox in _bboxes]):
+                        image, bboxes = _image, _bboxes
+                except Exception as e:
+                    print(e, 'Random scale failed for', image_file)
 
             ## Random translate
-            image, bboxes = RandomTranslate(translate=self.random_translate_factor,
-                    diff=True)(image, bboxes)
+            if not critical:
+                try:
+                    _image, _bboxes = RandomTranslate(translate=self.random_translate_factor,
+                            diff=True)(image, bboxes)
+                    if all([is_bbox_ok(bbox) for bbox in _bboxes]):
+                        image, bboxes = _image, _bboxes
+                except Exception as e:
+                    print(e, 'Random translate failed for', image_file)
 
             ## Random crop
-            image, bboxes = RandomCrop(self.random_crop_prob)(image, bboxes)
+            try:
+                _image, _bboxes = RandomCrop(self.random_crop_prob)(image, bboxes)
+                if all([is_bbox_ok(bbox) for bbox in _bboxes]):
+                    image, bboxes = _image, _bboxes
+            except Exception as e:
+                print(e, 'Random crop failed for', image_file)
 
             ## Random rotation
-            image, bboxes = RandomRotate(angle=self.random_rotation_angle)(image, bboxes)
+            if not critical:
+                try:
+                    _image, _bboxes = RandomRotate(angle=self.random_rotation_angle)(image, bboxes)
+                    if all([is_bbox_ok(bbox) for bbox in _bboxes]):
+                        image, bboxes = _image, _bboxes
+                except Exception as e:
+                    print(e, 'Random rotation failed for', image_file)
 
             ## Random shear
-            image, bboxes = RandomShear(shear_factor=self.random_shear_factor)(image, bboxes)
+            try:
+                _image, _bboxes = RandomShear(shear_factor=self.random_shear_factor)(image, bboxes)
+                if all([is_bbox_ok(bbox) for bbox in _bboxes]):
+                    image, bboxes = _image, _bboxes
+            except Exception as e:
+                print(e, 'Random shear failed for', image_file)
 
         ## Resize image to input size as letterbox
-        image, bboxes = Resize(self.input_size)(image, bboxes)
-        bbox = bboxes[0]  ## Only one bbox
+        try:
+            _image, _bboxes = Resize(self.input_size)(image, bboxes)
+            if all([is_bbox_ok(bbox) for bbox in _bboxes]):
+                image, bboxes = _image, _bboxes
+                bbox = bboxes[0]  ## Only one bbox
+            else:
+                image, bbox = resize(image, bboxes[0], self.input_size)
+        except Exception as e:
+            print(e, 'Resize letterbox failed for', image_file)
+            image, bbox = resize(image, bboxes[0], (self.input_size, self.input_size))
 
         ## Set score map, geo map and training mask
         score_map = np.zeros((self.input_size, self.input_size), dtype=np.uint8)
@@ -574,18 +612,18 @@ class Resize(object):
         self.inp_dim = inp_dim
 
     def __call__(self, img, bboxes):
-        w,h = img.shape[1], img.shape[0]
+        w, h = img.shape[1], img.shape[0]
         img = letterbox_image(img, self.inp_dim)
 
-        scale = min(self.inp_dim/h, self.inp_dim/w)
-        bboxes[:,:4] *= (scale)
+        scale = min(self.inp_dim / (h + 1e-10), self.inp_dim / (w + 1e-10))
+        bboxes[:, :4] *= scale
 
-        new_w = scale*w
-        new_h = scale*h
+        new_w = scale * w
+        new_h = scale * h
         inp_dim = self.inp_dim
 
-        del_h = (inp_dim - new_h)/2
-        del_w = (inp_dim - new_w)/2
+        del_h = (inp_dim - new_h) / 2
+        del_w = (inp_dim - new_w) / 2
         add_matrix = np.array([[del_w, del_h, del_w, del_h]]).astype(int)
 
         bboxes[:,:4] += add_matrix

@@ -90,19 +90,19 @@ def get_corners(bboxes):
         Numpy array of shape `N x 8` containing N bounding boxes each described by their 
         corner co-ordinates `x1 y1 x2 y2 x3 y3 x4 y4`      
     """
-    width = (bboxes[:,2] - bboxes[:,0]).reshape(-1,1)
-    height = (bboxes[:,3] - bboxes[:,1]).reshape(-1,1)
+    width = (bboxes[:, 2] - bboxes[:, 0]).reshape(-1, 1)
+    height = (bboxes[:, 3] - bboxes[:, 1]).reshape(-1, 1)
 
-    x1 = bboxes[:,0].reshape(-1,1)
-    y1 = bboxes[:,1].reshape(-1,1)
+    x1 = bboxes[:, 0].reshape(-1, 1)
+    y1 = bboxes[:, 1].reshape(-1, 1)
 
     x2 = x1 + width
     y2 = y1 
     x3 = x1
     y3 = y1 + height
-    x4 = bboxes[:,2].reshape(-1,1)
-    y4 = bboxes[:,3].reshape(-1,1)
-    corners = np.hstack((x1,y1,x2,y2,x3,y3,x4,y4))
+    x4 = bboxes[:, 2].reshape(-1, 1)
+    y4 = bboxes[:, 3].reshape(-1, 1)
+    corners = np.hstack((x1, y1, x2, y2, x3, y3, x4, y4))
 
     return corners
 
@@ -137,6 +137,34 @@ def get_enclosing_box(corners):
     
     return final
 
+def is_bbox_ok(bbox, length=4):
+    if len(bbox) != length:
+        return False
+
+    if not all([b >= 0 for b in bbox]):
+        return False
+
+    x1, y1, x2, y2 = bbox
+    if not ((x1 < x2) and (y1 < y2)):
+        return False
+
+    return True
+
+def is_bbox8_ok(bbox, length=8):
+    if len(bbox) != length:
+        return False
+
+    if not all([b >= 0 for b in bbox]):
+        return False
+
+    x1, y1, x2, y2, x3, y3, x4, y4 = bbox
+    condition1 = (x1 < x2) and (x2 == x3) and (x3 > x4) and (x4 == x1)
+    condition2 = (y1 == y2) and (y2 < y3) and (y3 == y4) and (y4 > y1)
+    if not (condition1 and condition2):
+        return False
+
+    return True
+
 def letterbox_image(img, inp_dim):
     '''resize image with unchanged aspect ratio using padding
     Parameters
@@ -154,8 +182,8 @@ def letterbox_image(img, inp_dim):
     inp_dim = (inp_dim, inp_dim)
     img_w, img_h = img.shape[1], img.shape[0]
     w, h = inp_dim
-    new_w = int(img_w * min(w / img_w, h / img_h))
-    new_h = int(img_h * min(w / img_w, h / img_h))
+    new_w = int(img_w * min(w / (img_w + 1e-10), h / (img_h + 1e-10)))
+    new_h = int(img_h * min(w / (img_w + 1e-10), h / (img_h + 1e-10)))
     resized_image = cv2.resize(img, (new_w, new_h))
     canvas = np.full((inp_dim[1], inp_dim[0], 3), 0)
 
@@ -163,8 +191,9 @@ def letterbox_image(img, inp_dim):
            (w - new_w) // 2 : (w - new_w) // 2 + new_w, :] = resized_image
     return canvas
 
-def resize(image, bbox, h, w, interpolation=cv2.INTER_NEAREST):
+def resize(image, bbox, size, interpolation=cv2.INTER_NEAREST):
     _h, _w, _ = image.shape
+    h, w = size
     image = cv2.resize(image, dsize=(h, w), interpolation=interpolation)
     ratio_h = h / _h
     ratio_w = w / _w

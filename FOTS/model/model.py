@@ -1,15 +1,16 @@
-from ..base import BaseModel
-import torch.nn as nn
+import numpy as np
+import pretrainedmodels as pm
 import torch
-import math
+import torch.nn as nn
+import torch.optim as optim
+
+from ..base import BaseModel
 from .modules import shared_conv
 from .modules.roi_rotate import ROIRotate
 from .modules.crnn import CRNN
 from .keys import keys
-import pretrainedmodels as pm
-import torch.optim as optim
 from ..utils.bbox import Toolbox
-import numpy as np
+from ..data_loader.datautils import is_bbox8_ok
 
 
 class FOTSModel:
@@ -89,7 +90,7 @@ class FOTSModel:
         :param input:
         :return:
         '''
-        image, boxes, mapping = input
+        image_files, image, boxes, mapping = input
 
         if image.is_cuda:
             device = image.get_device()
@@ -102,7 +103,7 @@ class FOTSModel:
         if self.training:
             # rois, lengths, indices = self.roirotate(feature_map, boxes[:, :8], mapping)
             boxes_norm = boxes[:, :8] / 4
-            rois, lengths, indices = self.get_cropped_padded_features(feature_map, boxes_norm)
+            rois, lengths, indices = self.get_cropped_padded_features(feature_map, boxes_norm, image_files)
             pred_mapping = mapping
             pred_boxes = boxes
         else:
@@ -114,8 +115,9 @@ class FOTSModel:
             for i in range(score.shape[0]):
                 s = score[i, :, :, 0]
                 bb = Toolbox.detect(score_map=s, score_map_thresh=self.score_map_threshold)
-
-                # pred_mapping.append(np.array([i] * bb_size))
+                if not is_bbox8_ok(bb):
+                    h, w = s.shape
+                    bb = np.array([0, 0, w, 0, w, h, 0, h, 1])
                 pred_mapping.append(i)
                 pred_boxes.append(bb)
 
@@ -127,7 +129,7 @@ class FOTSModel:
                 # print('PRED MAPPING', pred_mapping.shape)
                 # rois, lengths, indices = self.roirotate(feature_map, pred_boxes[:, :8], pred_mapping)
                 pred_boxes_norm = pred_boxes[:, :8] / 4
-                rois, lengths, indices = self.get_cropped_padded_features(feature_map, pred_boxes_norm)
+                rois, lengths, indices = self.get_cropped_padded_features(feature_map, pred_boxes_norm, image_files)
                 # print('ROIS', rois.shape)
                 # print('LENGTHS', lengths.shape, lengths)
                 # print('INDICES', indices.shape, indices)
@@ -142,7 +144,7 @@ class FOTSModel:
         # return score_map, geo_map, (preds, lengths), pred_boxes, pred_mapping, indices
         return score_map, (preds, lengths), pred_boxes, pred_mapping, indices
 
-    def get_cropped_padded_features(self, feature_map, boxes, ):
+    def get_cropped_padded_features(self, feature_map, boxes, image_files):
         '''
         feature_map: B, C, H, W
         boxes: B, 8 (x1, y1, x2, y2, x3, y3, x4, y4)
@@ -157,6 +159,7 @@ class FOTSModel:
         cropped_padded_features = []
 
         for i in range(n_batches):
+            assert is_bbox8_ok(boxes[i]), 'BBOX8 NOT OK ' + str(boxes[i]) + ' ' + str(image_files[i])
             w = boxes[i, 2] - boxes[i, 0]
             h = boxes[i, 5] - boxes[i, 1]
             cropped_feature = feature_map[i, :, boxes[i, 1]:boxes[i, 5], boxes[i, 0]:boxes[i, 2]] # [B, :, y1:y3, x1:x2]
@@ -178,7 +181,8 @@ class Recognizer(BaseModel):
     def __init__(self, nclass, config):
         super().__init__(config)
         dropout = self.config['model']['dropout']
-        self.crnn = CRNN(32, nclass, 256, dropout=dropout)
+        n_hidden = self.config['model']['recognizer_n_hidden']
+        self.crnn = CRNN(32, nclass, n_hidden, dropout=dropout)
 
     def forward(self, rois, lengths):
         return self.crnn(rois, lengths)

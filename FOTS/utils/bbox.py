@@ -180,8 +180,12 @@ class Toolbox:
             min_x, max_x = np.min(yx_scores[:, 1]), np.max(yx_scores[:, 1])
             if int(max_y) == int(min_y):
                 min_y, max_y = 0, h
+            if max_y < min_y:
+                min_y, max_y = max_y, min_y
             if int(max_x) == int(min_x):
                 min_x, max_x = 0, w
+            if max_x < min_x:
+                min_x, max_x = max_x, min_x
             return np.array([min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y, 1])
         else:
             return np.array([x1, y1, x2, y2, x3, y3, x4, y4, 1])
