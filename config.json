@@ -17,7 +17,7 @@
         "random_shear_factor": 0.2,
         "random_translate_factor": 0.05,
         "shuffle": true,
-        "visualize_data": true,
+        "visualize_data": false,
         "workers": 8
     },
     "validation": {
@@ -40,9 +40,9 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 10,
+        "epochs": 1,
         "save_dir": "saved/",
-        "save_freq": 10,
+        "save_freq": 1,
         "verbosity": 2,
         "monitor": "hmean",
         "monitor_mode": "max"

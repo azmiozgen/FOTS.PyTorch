@@ -73,6 +73,16 @@ def denormalize(image, from_min, from_max, to_min, to_max):
     scaled = np.array((image - from_min) / float(from_range), dtype=np.float32)
     return to_min + (scaled * to_range)
 
+def denormalize_tensor(tensor, from_min, from_max, to_min, to_max):
+    '''
+    tensor: tensor of shape (B, C, H, W)
+    '''
+    for i in range(tensor.size(0)):
+        image = np.array(tensor[i])
+        image = denormalize(image, from_min, from_max, to_min, to_max)
+        tensor[i] = torch.from_numpy(image)
+    return tensor
+
 def get_bbox_area(bbox):
     return (bbox[:,2] - bbox[:,0])*(bbox[:,3] - bbox[:,1])
 

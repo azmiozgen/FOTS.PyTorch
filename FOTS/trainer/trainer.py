@@ -68,7 +68,6 @@ class Trainer(BaseTrainer):
                 self.optimizer.zero_grad()
                 pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
                         self.model.forward(image_files, image, boxes, mapping)
-                #import pdb; pdb.set_trace()
                 transcriptions = transcriptions[indices]
                 pred_boxes = pred_boxes[indices]
                 pred_mapping = mapping[indices]
@@ -105,9 +104,9 @@ class Trainer(BaseTrainer):
 
                 ## Write summary writer images and text
                 if epoch % self.save_freq == 0 and batch_idx == 0:
-                    image_grid = torchvision.utils.make_grid(_image.double(), normalize=True, value_range=(0, 255))
-                    score_map_grid = torchvision.utils.make_grid(score_map.double(), normalize=True, value_range=(0, 1))
-                    pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double(), normalize=True, value_range=(0, 1))
+                    image_grid = torchvision.utils.make_grid(_image, normalize=True, scale_each=True)
+                    score_map_grid = torchvision.utils.make_grid(score_map)
+                    pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
                     step = epoch * self.len_data_loader + batch_idx
                     gt_transriptions_str =  ' '.join(transcriptions)
                     pred_transcriptions_str = ' '.join(pred_transcriptions)
@@ -222,9 +221,9 @@ class Trainer(BaseTrainer):
 
                     ## Write summary writer images and text
                     if epoch % self.save_freq == 0 and batch_idx == 0:
-                        image_grid = torchvision.utils.make_grid(_image.double(), normalize=True, value_range=(0, 255))
-                        score_map_grid = torchvision.utils.make_grid(score_map.double(), normalize=True, value_range=(0, 1))
-                        pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double(), normalize=True, value_range=(0, 1))
+                        image_grid = torchvision.utils.make_grid(_image, normalize=True, scale_each=True)
+                        score_map_grid = torchvision.utils.make_grid(score_map)
+                        pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
                         step = epoch * self.len_valid_data_loader + batch_idx
                         gt_transriptions_str =  ' '.join(transcriptions)
                         pred_transcriptions_str = ' '.join(pred_transcriptions)

@@ -100,8 +100,8 @@ class PriceTagDataset(Dataset):
         if self.visualize_data:
             transformed_image_filename = image_filename_wo_ext + '_transformed' + ext
             transformed_image_file = os.path.join(self.visualization_dir, transformed_image_filename)
-            image = denormalize(image, from_min=-1, from_max=1, to_min=0, to_max=255)
-            cv2.imwrite(transformed_image_file, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            _image = denormalize(image, from_min=-1, from_max=1, to_min=0, to_max=255)
+            cv2.imwrite(transformed_image_file, cv2.cvtColor(_image, cv2.COLOR_BGR2RGB))
             self.visualize(transformed_image_file, bbox, transcription[0])
 
         return image_file, image, score_map, training_mask, transcription, bbox
