@@ -94,7 +94,7 @@ class PriceTagDataset(Dataset):
             self.visualize(image_file, bbox, transcription)
 
         ## Apply transformations
-        image_file, image, score_map, training_mask, transcription, bbox = \
+        image_file, image, score_map, transcription, bbox = \
                 self.__transform((image_file, bbox, transcription))
 
         if self.visualize_data:
@@ -104,7 +104,7 @@ class PriceTagDataset(Dataset):
             cv2.imwrite(transformed_image_file, cv2.cvtColor(_image, cv2.COLOR_BGR2RGB))
             self.visualize(transformed_image_file, bbox, transcription[0])
 
-        return image_file, image, score_map, training_mask, transcription, bbox
+        return image_file, image, score_map, transcription, bbox
 
     def __len__(self):
         return len(self.image_files)
@@ -188,7 +188,6 @@ class PriceTagDataset(Dataset):
 
         ## Set score map, geo map and training mask
         score_map = np.zeros((self.input_size, self.input_size), dtype=np.uint8)
-        training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)  ## One region
 
         ## Mask score map by bbox
         _bbox = bbox.astype(np.int32)
@@ -200,16 +199,15 @@ class PriceTagDataset(Dataset):
         bbox = [x1, y1, x2, y2, x3, y3, x4, y4]
 
         ## Normalize image
-        # image = (image - np.min(image)) / (np.max(image) - np.min(image) + 1e-10)           ## [0, 1]
-        image = 2 * ((image - np.min(image)) / (np.max(image) - np.min(image) + 1e-10)) - 1   ## [-1, 1]
+        # image = (image - np.min(image)) / (np.max(image) - np.min(image) + 1e-10)          ## [0, 1]
+        image = 2 * ((image - np.min(image)) / (np.max(image) - np.min(image) + 1e-10)) - 1  ## [-1, 1]
 
         ## Arrange
         images = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
         score_maps = score_map[::4, ::4, np.newaxis].astype(np.float32)
-        training_masks = training_mask[::4, ::4, np.newaxis].astype(np.float32)
         transcription = np.array([transcription], dtype=str)
 
-        return image_file, images, score_maps, training_masks, transcription, bbox
+        return image_file, images, score_maps, transcription, bbox
 
     def visualize(self, image_file, bbox, transcription, fontsize=20):
         bbox = np.array(bbox).astype(int)
@@ -299,7 +297,7 @@ class RandomCrop(object):
         return image, new_bboxes
 
 class RandomBlur(object):
-    def __init__(self, ksize_sigma=[5, 0.5]):
+    def __init__(self, ksize_sigma=[5, 1.0]):
         ksize, sigma = ksize_sigma
         if ksize % 2 == 0:
             ksize += 1
@@ -376,23 +374,23 @@ class RandomHSV(object):
         return img
 
 class RandomRotate(object):
-    """Randomly rotates an image    
-    Bounding boxes which have an area of less than 25% in the remaining in the 
+    """Randomly rotates an image
+    Bounding boxes which have an area of less than 25% in the remaining in the
     transformed image is dropped. The resolution is maintained, and the remaining
     area if any is filled by black color.
     Parameters
     ----------
     angle: float or tuple(float)
-        if **float**, the image is rotated by a factor drawn 
+        if **float**, the image is rotated by a factor drawn
         randomly from a range (-`angle`, `angle`). If **tuple**,
-        the `angle` is drawn randomly from values specified by the 
+        the `angle` is drawn randomly from values specified by the
         tuple
     Returns
     -------
     numpy.ndarray
         Rotated image in the numpy format of shape `HxWxC`
     numpy.ndarray
-        Tranformed bounding box co-ordinates of the format `n x 4` where n is 
+        Tranformed bounding box co-ordinates of the format `n x 4` where n is
         number of bounding boxes and 4 represents `x1,y1,x2,y2` of the box
     """
 
@@ -427,23 +425,23 @@ class RandomRotate(object):
         return img, bboxes
 
 class RandomScale(object):
-    """Randomly scales an image    
-    Bounding boxes which have an area of less than 25% in the remaining in the 
+    """Randomly scales an image
+    Bounding boxes which have an area of less than 25% in the remaining in the
     transformed image is dropped. The resolution is maintained, and the remaining
     area if any is filled by black color.
     Parameters
     ----------
     scale: float or tuple(float)
-        if **float**, the image is scaled by a factor drawn 
+        if **float**, the image is scaled by a factor drawn
         randomly from a range (1 - `scale` , 1 + `scale`). If **tuple**,
-        the `scale` is drawn randomly from values specified by the 
+        the `scale` is drawn randomly from values specified by the
         tuple
     Returns
     -------
     numpy.ndarray
         Scaled image in the numpy format of shape `HxWxC`
     numpy.ndarray
-        Tranformed bounding box co-ordinates of the format `n x 4` where n is 
+        Tranformed bounding box co-ordinates of the format `n x 4` where n is
         number of bounding boxes and 4 represents `x1,y1,x2,y2` of the box
     """
 
@@ -484,23 +482,23 @@ class RandomScale(object):
         return img, bboxes
 
 class RandomShear(object):
-    """Randomly shears an image in horizontal direction   
-    Bounding boxes which have an area of less than 25% in the remaining in the 
+    """Randomly shears an image in horizontal direction
+    Bounding boxes which have an area of less than 25% in the remaining in the
     transformed image is dropped. The resolution is maintained, and the remaining
     area if any is filled by black color.
     Parameters
     ----------
     shear_factor: float or tuple(float)
-        if **float**, the image is sheared horizontally by a factor drawn 
+        if **float**, the image is sheared horizontally by a factor drawn
         randomly from a range (-`shear_factor`, `shear_factor`). If **tuple**,
-        the `shear_factor` is drawn randomly from values specified by the 
+        the `shear_factor` is drawn randomly from values specified by the
         tuple
     Returns
     -------
     numpy.ndarray
         Sheared image in the numpy format of shape `HxWxC`
     numpy.ndarray
-        Tranformed bounding box co-ordinates of the format `n x 4` where n is 
+        Tranformed bounding box co-ordinates of the format `n x 4` where n is
         number of bounding boxes and 4 represents `x1,y1,x2,y2` of the box
     """
 
@@ -525,31 +523,31 @@ class RandomShear(object):
         img = cv2.warpAffine(img, M, (int(nW), img.shape[0]))
 
         if shear_factor < 0:
-        	img, bboxes = HorizontalFlip()(img, bboxes)
+            img, bboxes = HorizontalFlip()(img, bboxes)
         img = cv2.resize(img, (w, h))
         scale_factor_x = nW / w
-        bboxes[:,:4] /= [scale_factor_x, 1, scale_factor_x, 1]
+        bboxes[:, :4] /= [scale_factor_x, 1, scale_factor_x, 1]
 
         return img, bboxes
 
 class RandomTranslate(object):
-    """Randomly Translates the image    
+    """Randomly Translates the image
     Bounding boxes which have an area of less than 25% in the remaining
     transformed image is dropped. The resolution is maintained, and the remaining
     area if any is filled by black color.
     Parameters
     ----------
     translate: float or tuple(float)
-        if **float**, the image is translated by a factor drawn 
+        if **float**, the image is translated by a factor drawn
         randomly from a range (1 - `translate` , 1 + `translate`). If **tuple**,
-        `translate` is drawn randomly from values specified by the 
+        `translate` is drawn randomly from values specified by the
         tuple
     Returns
     -------
     numpy.ndaaray
         Translated image in the numpy format of shape `HxWxC`
     numpy.ndarray
-        Tranformed bounding box co-ordinates of the format `n x 4` where n is 
+        Tranformed bounding box co-ordinates of the format `n x 4` where n is
         number of bounding boxes and 4 represents `x1,y1,x2,y2` of the box
     """
 

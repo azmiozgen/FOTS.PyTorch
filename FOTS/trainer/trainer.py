@@ -59,14 +59,14 @@ class Trainer(BaseTrainer):
         """
         self.model.train()
 
-        total_loss, total_iou_loss, total_cls_loss, total_rec_loss = 0, 0, 0, 0
+        total_loss, total_det_loss, total_rec_loss = 0, 0, 0
         total_metrics = np.zeros(3) # precision, recall, hmean
         text_accuracy = 0.0
         value_error = 0.0
         for batch_idx, gt in enumerate(self.data_loader):
             try:
-                image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
-                image, score_map, training_mask = self._to_device(_image.clone(), score_map.clone(), training_mask.clone())
+                image_files, _image, score_map, transcriptions, boxes, mapping = gt
+                image, score_map = self._to_device(_image.clone(), score_map.clone())
 
                 self.optimizer.zero_grad()
                 pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
@@ -84,15 +84,14 @@ class Trainer(BaseTrainer):
                 label_lengths = label_lengths.to(self.device)
                 recog = (labels, label_lengths)
 
-                iou_loss, cls_loss, rec_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
-                loss = iou_loss + cls_loss + rec_loss
+                detection_loss, recognition_loss = self.loss(pred_score_map, score_map, pred_recog, recog)
+                loss = detection_loss + recognition_loss
                 loss.backward()
                 self.optimizer.step()
 
                 total_loss += loss.item()
-                total_iou_loss += iou_loss.item()
-                total_cls_loss += cls_loss.item()
-                total_rec_loss += rec_loss.item()
+                total_det_loss += detection_loss.item()
+                total_rec_loss += recognition_loss.item()
                 pred_transcriptions = []
                 if len(pred_mapping) > 0:
                     pred, lengths = pred_recog
@@ -155,20 +154,21 @@ class Trainer(BaseTrainer):
                 raise
 
         avg_loss = total_loss / self.len_data_loader
+        avg_det_loss = total_det_loss / self.len_data_loader
+        avg_rec_loss = total_rec_loss / self.len_data_loader
         if self.verbosity >= 2:
-            avg_iou_loss = total_iou_loss / self.len_data_loader
-            avg_cls_loss = total_cls_loss / self.len_data_loader
-            avg_rec_loss = total_rec_loss / self.len_data_loader
             self.logger.info(\
-                'Train: Epoch: {} [{} samples] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                'Train: Epoch: {} [{} samples] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
                     epoch,
                     len(self.data_loader.dataset),
-                    avg_loss, avg_iou_loss, avg_cls_loss, avg_rec_loss))
+                    avg_loss, avg_det_loss, avg_rec_loss))
 
         log = {
             'loss': avg_loss,
-            'precision': total_metrics[0] / self.len_data_loader,
-            'recall': total_metrics[1] / self.len_data_loader,
+            'det_loss': avg_det_loss,
+            'rec_loss': avg_rec_loss,
+            # 'precision': total_metrics[0] / self.len_data_loader,
+            # 'recall': total_metrics[1] / self.len_data_loader,
             'hmean': total_metrics[2] / self.len_data_loader,
             'text_accuracy': text_accuracy / self.len_data_loader,
             'value_error': value_error / self.len_data_loader
@@ -189,15 +189,15 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         total_val_metrics = np.zeros(3)
-        total_loss, total_iou_loss, total_cls_loss, total_rec_loss = 0, 0, 0, 0
+        total_loss, total_det_loss, total_rec_loss = 0, 0, 0
         total_val_metrics = np.zeros(3) # precision, recall, hmean
         text_accuracy = 0.0
         value_error = 0.0
         with torch.no_grad():
             for batch_idx, gt in enumerate(self.valid_data_loader):
                 try:
-                    image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
-                    image, score_map, training_mask = self._to_device(_image.clone(), score_map.clone(), training_mask.clone())
+                    image_files, _image, score_map, transcriptions, boxes, mapping = gt
+                    image, score_map = self._to_device(_image.clone(), score_map.clone())
 
                     pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
                             self.model.forward(image_files, image, boxes, mapping)
@@ -251,12 +251,11 @@ class Trainer(BaseTrainer):
                         self.summary_writer.add_image('val_gt_transcriptions', gt_transcriptions_grid, step)
                         self.summary_writer.add_image('val_pred_transcriptions', pred_transcriptions_grid, step)
 
-                    iou_loss, cls_loss, rec_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
-                    loss = iou_loss + cls_loss + rec_loss
+                    detection_loss, recognition_loss = self.loss(pred_score_map, score_map, pred_recog, recog)
+                    loss = detection_loss + recognition_loss
                     total_loss += loss.item()
-                    total_iou_loss += iou_loss.item()
-                    total_cls_loss += cls_loss.item()
-                    total_rec_loss += rec_loss.item()
+                    total_det_loss += detection_loss.item()
+                    total_rec_loss += recognition_loss.item()
 
                     total_val_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, image_files),
                                                             (boxes, transcriptions, image_files))
@@ -282,20 +281,21 @@ class Trainer(BaseTrainer):
                     # raise
 
         avg_loss = total_loss / self.len_valid_data_loader
+        avg_det_loss = total_det_loss / self.len_valid_data_loader
+        avg_rec_loss = total_rec_loss / self.len_valid_data_loader
         if self.verbosity >= 2:
-            avg_iou_loss = total_iou_loss / self.len_valid_data_loader
-            avg_cls_loss = total_cls_loss / self.len_valid_data_loader
-            avg_rec_loss = total_rec_loss / self.len_valid_data_loader
             self.logger.info(\
-                'Val: Epoch: {} [{} samples] Loss: {:.6f} IOU Loss: {:.6f} CLS Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                'Val: Epoch: {} [{} samples] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
                     epoch,
                     len(self.valid_data_loader.dataset),
-                    avg_loss, avg_iou_loss, avg_cls_loss, avg_rec_loss))
+                    avg_loss, avg_det_loss, avg_rec_loss))
 
         return {
             'val_loss': avg_loss,
-            'val_precision': total_val_metrics[0] / self.len_valid_data_loader,
-            'val_recall': total_val_metrics[1] / self.len_valid_data_loader,
+            'val_det_loss': avg_det_loss,
+            'val_rec_loss': avg_rec_loss,
+            # 'val_precision': total_val_metrics[0] / self.len_valid_data_loader,
+            # 'val_recall': total_val_metrics[1] / self.len_valid_data_loader,
             'val_hmean': total_val_metrics[2] / self.len_valid_data_loader,
             'val_text_accuracy': text_accuracy / self.len_valid_data_loader,
             'val_value_error': value_error / self.len_valid_data_loader

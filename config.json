@@ -4,7 +4,7 @@
     "gpus": [0],
     "data_loader": {
         "annotation_ext": "json",
-        "batch_size": 20,
+        "batch_size": 8,
         "dataset": "price_tag",
         "data_dirname": "price_tag_small",
         "image_ext": "jpg",
@@ -40,9 +40,9 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 20,
+        "epochs": 50,
         "save_dir": "saved/",
-        "save_freq": 5,
+        "save_freq": 25,
         "verbosity": 2,
         "monitor": "hmean",
         "monitor_mode": "max"
@@ -50,8 +50,9 @@
     "arch" : "FOTSModel",
     "model" : {
         "mode": "united",
-        "recognizer_n_hidden": 16,
-        "score_map_threshold": 0.5,
-        "dropout": 0.8
+        "dice_smooth": 1.0,
+        "dropout": 0.8,
+        "recognizer_n_hidden": 256,
+        "score_map_threshold": 0.5
     }
 }

@@ -122,14 +122,8 @@ class FOTSModel:
             if len(pred_mapping) > 0:
                 pred_boxes = np.array(pred_boxes).astype(np.float32)
                 pred_mapping = np.array(pred_mapping)
-                # print('FEATURE MAP', feature_map.shape)
-                # print('PRED BOXES', pred_boxes.shape)
-                # print('PRED MAPPING', pred_mapping.shape)
                 pred_boxes_norm = pred_boxes[:, :8] / 4
                 rois, lengths, indices = self.get_cropped_padded_features(feature_map, pred_boxes_norm, image_files)
-                # print('ROIS', rois.shape)
-                # print('LENGTHS', lengths.shape, lengths)
-                # print('INDICES', indices.shape, indices)
             else:
                 return score_map, (None, None), pred_boxes, pred_mapping, None
 
@@ -161,7 +155,6 @@ class FOTSModel:
             cropped_feature = nn.ZeroPad2d((0, max(0, max_width - w), 0, max(0, max_height - h)))(cropped_feature)
             cropped_padded_features.append(cropped_feature)
         cropped_padded_features = torch.stack(cropped_padded_features, dim=0)
-        # print('CROPPED PADDED FEATURES', cropped_padded_features.shape)
 
         lengths = boxes[:, 2] - boxes[:, 0]
         indices = np.argsort(lengths) # sort images by its width cause pack padded tensor needs it
@@ -188,13 +181,10 @@ class Detector(BaseModel):
     def __init__(self, config):
         super().__init__(config)
         dropout = self.config['model']['dropout']
-        # self.scoreMap = nn.Conv2d(32, 1, kernel_size = 1)
         self.scoreMap = nn.Sequential(
             nn.Conv2d(32, 1, kernel_size=1),
             nn.Dropout2d(dropout, inplace=True),
         )
-        # self.geoMap = nn.Conv2d(32, 4, kernel_size = 1)
-        # self.angleMap = nn.Conv2d(32, 1, kernel_size = 1)
         self.input_size = config['data_loader']['input_size']
 
     def forward(self, *input):
@@ -203,13 +193,4 @@ class Detector(BaseModel):
         score = self.scoreMap(final)
         score = torch.sigmoid(score)
 
-        # geoMap = self.geoMap(final)
-        # geoMap = torch.sigmoid(geoMap) * self.input_size
-
-        # angleMap = self.angleMap(final)
-        # angleMap = (torch.sigmoid(angleMap) - 0.5) * math.pi / 2
-
-        # geometry = torch.cat([geoMap, angleMap], dim=1)
-
-        # return score, geometry
         return score
