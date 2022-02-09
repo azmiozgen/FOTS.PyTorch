@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import torchvision
@@ -5,6 +7,7 @@ from ..base import BaseTrainer
 from ..utils.bbox import Toolbox
 from ..model.keys import keys
 from ..utils.util import strLabelConverter
+from ..data_loader.datautils import draw_text_tensor
 
 class Trainer(BaseTrainer):
     """
@@ -63,15 +66,18 @@ class Trainer(BaseTrainer):
         for batch_idx, gt in enumerate(self.data_loader):
             try:
                 image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
-                image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
+                image, score_map, training_mask = self._to_device(_image.clone(), score_map.clone(), training_mask.clone())
 
                 self.optimizer.zero_grad()
                 pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
                         self.model.forward(image_files, image, boxes, mapping)
                 transcriptions = transcriptions[indices]
+                image_files = np.array(image_files)[indices]
+                image_visual = _image[indices]
                 pred_boxes = pred_boxes[indices]
-                pred_mapping = mapping[indices]
-                pred_fns = [image_files[i] for i in pred_mapping]
+                pred_mapping = pred_mapping[indices]
+                pred_score_map = pred_score_map[indices]
+                score_map = score_map[indices]
 
                 labels, label_lengths = self.labelConverter.encode(transcriptions.tolist())
                 labels = labels.to(self.device)
@@ -101,24 +107,32 @@ class Trainer(BaseTrainer):
                 if batch_idx == 0:
                     print('Training gt transcriptions:', transcriptions)
                     print('Training pred transcriptions:', pred_transcriptions)
+                    print('Training files', list(map(os.path.basename, image_files)))
 
                 ## Write summary writer images and text
                 if epoch % self.save_freq == 0 and batch_idx == 0:
-                    image_grid = torchvision.utils.make_grid(_image, normalize=True, scale_each=True)
+                    step = epoch * self.len_data_loader + batch_idx
+
+                    image_grid = torchvision.utils.make_grid(image_visual, normalize=True, scale_each=True)
                     score_map_grid = torchvision.utils.make_grid(score_map)
                     pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
-                    step = epoch * self.len_data_loader + batch_idx
-                    gt_transriptions_str =  ' '.join(transcriptions)
-                    pred_transcriptions_str = ' '.join(pred_transcriptions)
+
+                    gt_transcriptions_tensor = draw_text_tensor(transcriptions)
+                    gt_transcriptions_grid = torchvision.utils.make_grid(gt_transcriptions_tensor,
+                            normalize=True, value_range=(0, 1))
+
+                    pred_transcriptions_tensor = draw_text_tensor(pred_transcriptions)
+                    pred_transcriptions_grid = torchvision.utils.make_grid(pred_transcriptions_tensor,
+                            normalize=True, value_range=(0, 1))
+
                     self.summary_writer.add_image('train_images', image_grid, step)
                     self.summary_writer.add_image('train_gt_masks', score_map_grid, step)
                     self.summary_writer.add_image('train_pred_masks', pred_score_map_grid, step)
-                    self.summary_writer.add_text('train_gt_transcriptions', gt_transriptions_str, step)
-                    self.summary_writer.add_text('train_pred_transcriptions', pred_transcriptions_str, step)
+                    self.summary_writer.add_image('train_gt_transcriptions', gt_transcriptions_grid, step)
+                    self.summary_writer.add_image('train_pred_transcriptions', pred_transcriptions_grid, step)
 
-                gt_fns = pred_fns
-                total_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, pred_fns),
-                                                        (boxes, transcriptions, gt_fns))
+                total_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, image_files),
+                                                        (boxes, transcriptions, image_files))
 
                 ## Transcripton accuracy
                 text_accuracy += np.mean(transcriptions == pred_transcriptions)
@@ -169,9 +183,7 @@ class Trainer(BaseTrainer):
     def _valid_epoch(self, epoch):
         """
         Validate after training an epoch
-
         :return: A log that contains information about validation
-
         Note:
             The validation metrics in log must have the key 'val_metrics'.
         """
@@ -185,14 +197,17 @@ class Trainer(BaseTrainer):
             for batch_idx, gt in enumerate(self.valid_data_loader):
                 try:
                     image_files, _image, score_map, training_mask, transcriptions, boxes, mapping = gt
-                    image, score_map, training_mask = self._to_device(_image, score_map, training_mask)
+                    image, score_map, training_mask = self._to_device(_image.clone(), score_map.clone(), training_mask.clone())
 
                     pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
                             self.model.forward(image_files, image, boxes, mapping)
                     transcriptions = transcriptions[indices]
+                    image_files = np.array(image_files)[indices]
+                    image_visual = _image[indices]
                     pred_boxes = pred_boxes[indices]
-                    pred_mapping = mapping[indices]
-                    pred_fns = [image_files[i] for i in pred_mapping]
+                    pred_mapping = pred_mapping[indices]
+                    pred_score_map = pred_score_map[indices]
+                    score_map = score_map[indices]
 
                     labels, label_lengths = self.labelConverter.encode(transcriptions.tolist())
                     labels = labels.to(self.device)
@@ -200,12 +215,7 @@ class Trainer(BaseTrainer):
                     recog = (labels, label_lengths)
 
                     pred_transcriptions = []
-                    pred_fns = []
                     if len(pred_mapping) > 0:
-                        pred_mapping = pred_mapping[indices]
-                        pred_boxes = pred_boxes[indices]
-                        pred_fns = [image_files[i] for i in pred_mapping]
-
                         pred, lengths = pred_recog
                         _, pred = pred.max(2)
                         for i in range(lengths.numel()):
@@ -221,17 +231,25 @@ class Trainer(BaseTrainer):
 
                     ## Write summary writer images and text
                     if epoch % self.save_freq == 0 and batch_idx == 0:
-                        image_grid = torchvision.utils.make_grid(_image, normalize=True, scale_each=True)
+                        step = epoch * self.len_valid_data_loader + batch_idx
+
+                        image_grid = torchvision.utils.make_grid(image_visual, normalize=True, scale_each=True)
                         score_map_grid = torchvision.utils.make_grid(score_map)
                         pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
-                        step = epoch * self.len_valid_data_loader + batch_idx
-                        gt_transriptions_str =  ' '.join(transcriptions)
-                        pred_transcriptions_str = ' '.join(pred_transcriptions)
+
+                        gt_transcriptions_tensor = draw_text_tensor(transcriptions)
+                        gt_transcriptions_grid = torchvision.utils.make_grid(gt_transcriptions_tensor,
+                                normalize=True, value_range=(0, 1))
+
+                        pred_transcriptions_tensor = draw_text_tensor(pred_transcriptions)
+                        pred_transcriptions_grid = torchvision.utils.make_grid(pred_transcriptions_tensor,
+                                normalize=True, value_range=(0, 1))
+
                         self.summary_writer.add_image('val_images', image_grid, step)
                         self.summary_writer.add_image('val_gt_masks', score_map_grid, step)
                         self.summary_writer.add_image('val_pred_masks', pred_score_map_grid, step)
-                        self.summary_writer.add_text('val_gt_transcriptions', gt_transriptions_str, step)
-                        self.summary_writer.add_text('val_pred_transcriptions', pred_transcriptions_str, step)
+                        self.summary_writer.add_image('val_gt_transcriptions', gt_transcriptions_grid, step)
+                        self.summary_writer.add_image('val_pred_transcriptions', pred_transcriptions_grid, step)
 
                     iou_loss, cls_loss, rec_loss = self.loss(score_map, pred_score_map, recog, pred_recog, training_mask)
                     loss = iou_loss + cls_loss + rec_loss
@@ -240,9 +258,8 @@ class Trainer(BaseTrainer):
                     total_cls_loss += cls_loss.item()
                     total_rec_loss += rec_loss.item()
 
-                    gt_fns = [image_files[i] for i in mapping]
-                    total_val_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, pred_fns),
-                                                            (boxes, transcriptions, gt_fns))
+                    total_val_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, image_files),
+                                                            (boxes, transcriptions, image_files))
 
                     ## Transcripton accuracy
                     text_accuracy += np.mean(transcriptions == pred_transcriptions)

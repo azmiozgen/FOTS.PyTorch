@@ -40,9 +40,9 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 1,
+        "epochs": 20,
         "save_dir": "saved/",
-        "save_freq": 1,
+        "save_freq": 5,
         "verbosity": 2,
         "monitor": "hmean",
         "monitor_mode": "max"

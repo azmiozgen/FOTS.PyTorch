@@ -86,7 +86,6 @@ class FOTSModel:
 
     def forward(self, *input):
         '''
-
         :param input:
         :return:
         '''
@@ -101,7 +100,6 @@ class FOTSModel:
         score_map = self.detector(feature_map)
 
         if self.training:
-            # rois, lengths, indices = self.roirotate(feature_map, boxes[:, :8], mapping)
             boxes_norm = boxes[:, :8] / 4
             rois, lengths, indices = self.get_cropped_padded_features(feature_map, boxes_norm, image_files)
             pred_mapping = mapping
@@ -127,21 +125,18 @@ class FOTSModel:
                 # print('FEATURE MAP', feature_map.shape)
                 # print('PRED BOXES', pred_boxes.shape)
                 # print('PRED MAPPING', pred_mapping.shape)
-                # rois, lengths, indices = self.roirotate(feature_map, pred_boxes[:, :8], pred_mapping)
                 pred_boxes_norm = pred_boxes[:, :8] / 4
                 rois, lengths, indices = self.get_cropped_padded_features(feature_map, pred_boxes_norm, image_files)
                 # print('ROIS', rois.shape)
                 # print('LENGTHS', lengths.shape, lengths)
                 # print('INDICES', indices.shape, indices)
             else:
-                # return score_map, geo_map, (None, None), pred_boxes, pred_mapping, None
                 return score_map, (None, None), pred_boxes, pred_mapping, None
 
         lengths = torch.tensor(lengths).to(device)
         preds = self.recognizer(rois, lengths)
         preds = preds.permute(1, 0, 2) # B, T, C -> T, B, C
 
-        # return score_map, geo_map, (preds, lengths), pred_boxes, pred_mapping, indices
         return score_map, (preds, lengths), pred_boxes, pred_mapping, indices
 
     def get_cropped_padded_features(self, feature_map, boxes, image_files):

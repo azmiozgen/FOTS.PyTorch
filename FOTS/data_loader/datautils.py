@@ -83,6 +83,44 @@ def denormalize_tensor(tensor, from_min, from_max, to_min, to_max):
         tensor[i] = torch.from_numpy(image)
     return tensor
 
+def draw_text_image(text,
+            size=128,
+            font=cv2.FONT_HERSHEY_PLAIN,
+            font_scale=2,
+            color=(0, 0, 0),  ## Black text
+            thickness=2,
+            line_type=cv2.LINE_AA):
+    canvas = np.ones((size, size, 3), dtype=np.int32) * 255  ## White canvas
+    text_size, _ = cv2.getTextSize(text=text, fontFace=font, fontScale=font_scale, thickness=thickness)
+    text_width, text_height = text_size
+    canvas = cv2.putText(canvas,
+            text,
+            (size // 2 - text_width // 2, size // 2 + text_height // 2),
+            fontFace=font,
+            fontScale=font_scale,
+            color=color,
+            thickness=thickness,
+            lineType=line_type)
+    return canvas
+
+def draw_text_tensor(text_list,
+            size=128,
+            font=cv2.FONT_HERSHEY_PLAIN,
+            font_scale=2,
+            color=(0, 0, 0),
+            thickness=2,
+            line_type=cv2.LINE_AA):
+    '''
+    tensor: tensor of shape
+    '''
+    b = len(text_list)
+    tensor = torch.zeros((b, 3, size, size))  ## (B, C, H, W)
+    for i in range(b):
+        canvas = draw_text_image(text_list[i], size, font, font_scale, color, thickness, line_type)
+        canvas = canvas.transpose(2, 0, 1)
+        tensor[i] = torch.from_numpy(canvas)
+    return tensor
+
 def get_bbox_area(bbox):
     return (bbox[:,2] - bbox[:,0])*(bbox[:,3] - bbox[:,1])
 
