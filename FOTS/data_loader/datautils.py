@@ -55,11 +55,10 @@ def collate_fn(batch):
     images = torch.stack(images, 0)
     score_maps = torch.stack(score_maps, 0)
 
-    mapping = np.arange(len(transcriptions))
     bboxes = np.stack(boxes, axis=0)
     transcriptions = np.stack(transcriptions).flatten()
 
-    return image_files, images, score_maps, transcriptions, bboxes, mapping
+    return image_files, images, score_maps, transcriptions, bboxes
 
 def denormalize(image, from_min, from_max, to_min, to_max):
     from_range = from_max - from_min

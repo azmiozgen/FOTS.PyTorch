@@ -59,17 +59,15 @@ class Trainer(BaseTrainer):
         start_time = time.time()
         for batch_idx, gt in enumerate(self.data_loader):
             try:
-                image_files, _image, score_map, transcriptions, boxes, mapping = gt
+                image_files, _image, score_map, transcriptions, boxes = gt
                 image, score_map = self._to_device(_image.clone(), score_map.clone())
 
                 self.optimizer.zero_grad()
-                pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
-                        self.model.forward(image_files, image, boxes, mapping)
+                pred_score_map, pred_recog, pred_boxes, indices = self.model.forward(image_files, image, boxes)
                 transcriptions = transcriptions[indices]
                 image_files = np.array(image_files)[indices]
                 image_visual = _image[indices]
                 pred_boxes = pred_boxes[indices]
-                pred_mapping = pred_mapping[indices]
                 pred_score_map = pred_score_map[indices]
                 score_map = score_map[indices]
 
@@ -78,24 +76,27 @@ class Trainer(BaseTrainer):
                 label_lengths = label_lengths.to(self.device)
                 recog = (labels, label_lengths)
 
+                ## Get loss and optimize
                 detection_loss, recognition_loss = self.loss(pred_score_map, score_map, pred_recog, recog)
                 loss = detection_loss + recognition_loss
                 loss.backward()
                 self.optimizer.step()
 
+                ## Update total losses
                 total_loss += loss.item()
                 total_det_loss += detection_loss.item()
                 total_rec_loss += recognition_loss.item()
+
+                ## Get transcription predictions
                 pred_transcriptions = []
-                if len(pred_mapping) > 0:
-                    pred, lengths = pred_recog
-                    _, pred = pred.max(2)
-                    for i in range(lengths.numel()):
-                        l = lengths[i]
-                        p = pred[:l, i]
-                        t = self.label_converter.decode(p, l)
-                        pred_transcriptions.append(t)
-                    pred_transcriptions = np.array(pred_transcriptions)
+                pred, lengths = pred_recog
+                _, pred = pred.max(2)
+                for i in range(lengths.numel()):
+                    l = lengths[i]
+                    p = pred[:l, i]
+                    t = self.label_converter.decode(p, l)
+                    pred_transcriptions.append(t)
+                pred_transcriptions = np.array(pred_transcriptions)
 
                 if batch_idx == 0:
                     print('Training gt transcriptions:', transcriptions[:8])
@@ -183,16 +184,14 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             for batch_idx, gt in enumerate(self.valid_data_loader):
                 try:
-                    image_files, _image, score_map, transcriptions, boxes, mapping = gt
+                    image_files, _image, score_map, transcriptions, boxes = gt
                     image, score_map = self._to_device(_image.clone(), score_map.clone())
 
-                    pred_score_map, pred_recog, pred_boxes, pred_mapping, indices = \
-                            self.model.forward(image_files, image, boxes, mapping)
+                    pred_score_map, pred_recog, pred_boxes, indices = self.model.forward(image_files, image, boxes)
                     transcriptions = transcriptions[indices]
                     image_files = np.array(image_files)[indices]
                     image_visual = _image[indices]
                     pred_boxes = pred_boxes[indices]
-                    pred_mapping = pred_mapping[indices]
                     pred_score_map = pred_score_map[indices]
                     score_map = score_map[indices]
 
@@ -201,16 +200,16 @@ class Trainer(BaseTrainer):
                     label_lengths = label_lengths.to(self.device)
                     recog = (labels, label_lengths)
 
+                    ## Get transcription predictions
                     pred_transcriptions = []
-                    if len(pred_mapping) > 0:
-                        pred, lengths = pred_recog
-                        _, pred = pred.max(2)
-                        for i in range(lengths.numel()):
-                            l = lengths[i]
-                            p = pred[:l, i]
-                            t = self.label_converter.decode(p, l)
-                            pred_transcriptions.append(t)
-                        pred_transcriptions = np.array(pred_transcriptions)
+                    pred, lengths = pred_recog
+                    _, pred = pred.max(2)
+                    for i in range(lengths.numel()):
+                        l = lengths[i]
+                        p = pred[:l, i]
+                        t = self.label_converter.decode(p, l)
+                        pred_transcriptions.append(t)
+                    pred_transcriptions = np.array(pred_transcriptions)
 
                     if batch_idx == 0:
                         print('Validation gt transcriptions:', transcriptions)
@@ -238,6 +237,7 @@ class Trainer(BaseTrainer):
                         self.summary_writer.add_image('val_gt_transcriptions', gt_transcriptions_grid, step)
                         self.summary_writer.add_image('val_pred_transcriptions', pred_transcriptions_grid, step)
 
+                    ## Get loss
                     detection_loss, recognition_loss = self.loss(pred_score_map, score_map, pred_recog, recog)
                     loss = detection_loss + recognition_loss
                     total_loss += loss.item()
