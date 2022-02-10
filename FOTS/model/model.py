@@ -180,10 +180,10 @@ class Detector(BaseModel):
 
     def __init__(self, config):
         super().__init__(config)
-        dropout = self.config['model']['dropout']
+        # dropout = self.config['model']['dropout']
         self.scoreMap = nn.Sequential(
             nn.Conv2d(32, 1, kernel_size=1),
-            nn.Dropout2d(dropout, inplace=True),
+            # nn.Dropout2d(dropout, inplace=True),
         )
         self.input_size = config['data_loader']['input_size']
 
