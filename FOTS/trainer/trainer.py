@@ -1,4 +1,4 @@
-import os
+import time
 
 import numpy as np
 import torch
@@ -17,19 +17,20 @@ class Trainer(BaseTrainer):
         Inherited from BaseTrainer.
         self.optimizer is by default handled by BaseTrainer based on config.
     """
-    def __init__(self, model, loss, metrics, resume, config,
-                 data_loader, toolbox: Toolbox, valid_data_loader=None, train_logger=None):
-        super(Trainer, self).__init__(model, loss, metrics, resume, config, train_logger)
-        self.config = config
+    def __init__(self, model, loss, metrics, resume, config, config_file,
+                 data_loader, valid_data_loader=None, train_logger=None):
+        super(Trainer, self).__init__(model, loss, metrics, resume, config, config_file, train_logger)
         self.batch_size = data_loader.batch_size
+        self.config = config
+        self.config_file = config_file
         self.data_loader = data_loader
-        self.valid_data_loader = valid_data_loader
-        self.len_data_loader = len(self.data_loader)
-        self.len_valid_data_loader = len(self.valid_data_loader)
-        self.valid = True if self.valid_data_loader is not None else False
+        self.label_converter = strLabelConverter(keys)
+        self.len_data_loader = len(data_loader)
+        self.len_valid_data_loader = len(valid_data_loader)
         self.log_step = int(np.sqrt(self.batch_size))
-        self.toolbox = toolbox
-        self.labelConverter = strLabelConverter(keys)
+        self.mode = self.config['model']['mode']
+        self.valid = True if valid_data_loader is not None else False
+        self.valid_data_loader = valid_data_loader
 
     def _to_device(self, *tensors):
         t = []
@@ -37,32 +38,25 @@ class Trainer(BaseTrainer):
             t.append(__tensors.to(self.device))
         return t
 
-    def _eval_metrics(self, pred, gt):
-        precision, recall, hmean = self.metrics[0](pred, gt)
-        return np.array([precision, recall, hmean])
-
     def _train_epoch(self, epoch):
         """
         Training logic for an epoch
-
         :param epoch: Current training epoch.
         :return: A log that contains all information you want to save.
-
-        Note:
-            If you have additional information to record, for example:
-                > additional_log = {"x": x, "y": y}
-            merge it with log before return. i.e.
-                > log = {**log, **additional_log}
-                > return log
-
-            The metrics in log must have the key 'metrics'.
         """
-        self.model.train()
+        if self.mode == 'united':
+            self.model.train()
+        elif self.mode == 'detection':
+            self.model.train_detector()
+        elif self.mode == 'recognition':
+            self.model.train_recognizer()
+        else:
+            self.model.train()
 
         total_loss, total_det_loss, total_rec_loss = 0, 0, 0
-        total_metrics = np.zeros(3) # precision, recall, hmean
         text_accuracy = 0.0
         value_error = 0.0
+        start_time = time.time()
         for batch_idx, gt in enumerate(self.data_loader):
             try:
                 image_files, _image, score_map, transcriptions, boxes, mapping = gt
@@ -79,7 +73,7 @@ class Trainer(BaseTrainer):
                 pred_score_map = pred_score_map[indices]
                 score_map = score_map[indices]
 
-                labels, label_lengths = self.labelConverter.encode(transcriptions.tolist())
+                labels, label_lengths = self.label_converter.encode(transcriptions.tolist())
                 labels = labels.to(self.device)
                 label_lengths = label_lengths.to(self.device)
                 recog = (labels, label_lengths)
@@ -99,14 +93,13 @@ class Trainer(BaseTrainer):
                     for i in range(lengths.numel()):
                         l = lengths[i]
                         p = pred[:l, i]
-                        t = self.labelConverter.decode(p, l)
+                        t = self.label_converter.decode(p, l)
                         pred_transcriptions.append(t)
                     pred_transcriptions = np.array(pred_transcriptions)
 
                 if batch_idx == 0:
-                    print('Training gt transcriptions:', transcriptions)
-                    print('Training pred transcriptions:', pred_transcriptions)
-                    print('Training files', list(map(os.path.basename, image_files)))
+                    print('Training gt transcriptions:', transcriptions[:8])
+                    print('Training pred transcriptions:', pred_transcriptions[:8])
 
                 ## Write summary writer images and text
                 if epoch % self.save_freq == 0 and batch_idx == 0:
@@ -130,9 +123,6 @@ class Trainer(BaseTrainer):
                     self.summary_writer.add_image('train_gt_transcriptions', gt_transcriptions_grid, step)
                     self.summary_writer.add_image('train_pred_transcriptions', pred_transcriptions_grid, step)
 
-                total_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, image_files),
-                                                        (boxes, transcriptions, image_files))
-
                 ## Transcripton accuracy
                 text_accuracy += np.mean(transcriptions == pred_transcriptions)
 
@@ -153,25 +143,25 @@ class Trainer(BaseTrainer):
                 print(e, 'Training failed')
                 raise
 
+        total_time = round(time.time() - start_time, 2)
         avg_loss = total_loss / self.len_data_loader
         avg_det_loss = total_det_loss / self.len_data_loader
         avg_rec_loss = total_rec_loss / self.len_data_loader
         if self.verbosity >= 2:
             self.logger.info(\
-                'Train: Epoch: {} [{} samples] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                'Train: Epoch: {} [{} samples, {} seconds] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
                     epoch,
                     len(self.data_loader.dataset),
+                    total_time,
                     avg_loss, avg_det_loss, avg_rec_loss))
 
         log = {
             'loss': avg_loss,
             'det_loss': avg_det_loss,
             'rec_loss': avg_rec_loss,
-            # 'precision': total_metrics[0] / self.len_data_loader,
-            # 'recall': total_metrics[1] / self.len_data_loader,
-            'hmean': total_metrics[2] / self.len_data_loader,
             'text_accuracy': text_accuracy / self.len_data_loader,
-            'value_error': value_error / self.len_data_loader
+            'value_error': value_error / self.len_data_loader,
+            'time': total_time
         }
 
         if self.valid:
@@ -184,15 +174,12 @@ class Trainer(BaseTrainer):
         """
         Validate after training an epoch
         :return: A log that contains information about validation
-        Note:
-            The validation metrics in log must have the key 'val_metrics'.
         """
         self.model.eval()
-        total_val_metrics = np.zeros(3)
         total_loss, total_det_loss, total_rec_loss = 0, 0, 0
-        total_val_metrics = np.zeros(3) # precision, recall, hmean
         text_accuracy = 0.0
         value_error = 0.0
+        start_time = time.time()
         with torch.no_grad():
             for batch_idx, gt in enumerate(self.valid_data_loader):
                 try:
@@ -209,7 +196,7 @@ class Trainer(BaseTrainer):
                     pred_score_map = pred_score_map[indices]
                     score_map = score_map[indices]
 
-                    labels, label_lengths = self.labelConverter.encode(transcriptions.tolist())
+                    labels, label_lengths = self.label_converter.encode(transcriptions.tolist())
                     labels = labels.to(self.device)
                     label_lengths = label_lengths.to(self.device)
                     recog = (labels, label_lengths)
@@ -221,7 +208,7 @@ class Trainer(BaseTrainer):
                         for i in range(lengths.numel()):
                             l = lengths[i]
                             p = pred[:l, i]
-                            t = self.labelConverter.decode(p, l)
+                            t = self.label_converter.decode(p, l)
                             pred_transcriptions.append(t)
                         pred_transcriptions = np.array(pred_transcriptions)
 
@@ -257,9 +244,6 @@ class Trainer(BaseTrainer):
                     total_det_loss += detection_loss.item()
                     total_rec_loss += recognition_loss.item()
 
-                    total_val_metrics += self._eval_metrics((pred_boxes, pred_transcriptions, image_files),
-                                                            (boxes, transcriptions, image_files))
-
                     ## Transcripton accuracy
                     text_accuracy += np.mean(transcriptions == pred_transcriptions)
 
@@ -280,23 +264,23 @@ class Trainer(BaseTrainer):
                     print(e, 'Validation failed')
                     # raise
 
+        total_time = round(time.time() - start_time, 2)
         avg_loss = total_loss / self.len_valid_data_loader
         avg_det_loss = total_det_loss / self.len_valid_data_loader
         avg_rec_loss = total_rec_loss / self.len_valid_data_loader
         if self.verbosity >= 2:
             self.logger.info(\
-                'Val: Epoch: {} [{} samples] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+                'Val: Epoch: {} [{} samples, {:.2f} seconds] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
                     epoch,
                     len(self.valid_data_loader.dataset),
+                    total_time,
                     avg_loss, avg_det_loss, avg_rec_loss))
 
         return {
             'val_loss': avg_loss,
             'val_det_loss': avg_det_loss,
             'val_rec_loss': avg_rec_loss,
-            # 'val_precision': total_val_metrics[0] / self.len_valid_data_loader,
-            # 'val_recall': total_val_metrics[1] / self.len_valid_data_loader,
-            'val_hmean': total_val_metrics[2] / self.len_valid_data_loader,
             'val_text_accuracy': text_accuracy / self.len_valid_data_loader,
-            'val_value_error': value_error / self.len_valid_data_loader
+            'val_value_error': value_error / self.len_valid_data_loader,
+            'val_time': total_time
         }

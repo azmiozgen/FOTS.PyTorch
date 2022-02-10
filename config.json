@@ -40,18 +40,18 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 50,
+        "epochs": 1,
         "save_dir": "saved/",
-        "save_freq": 25,
+        "save_freq": 10,
         "verbosity": 2,
-        "monitor": "hmean",
-        "monitor_mode": "max"
+        "monitor": "val_loss",
+        "monitor_mode": "min"
     },
     "arch" : "FOTSModel",
     "model" : {
-        "mode": "united",
+        "mode": "recognition",
         "dice_smooth": 1.0,
-        "dropout": 0.8,
+        "dropout": 0,
         "recognizer_n_hidden": 256,
         "score_map_threshold": 0.5
     }

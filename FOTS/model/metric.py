@@ -1,4 +1,3 @@
-import numpy as np
 from ..utils.eval_tools.icdar2015 import eval as icdar_eval
 
 

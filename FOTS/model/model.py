@@ -9,7 +9,6 @@ from .modules import shared_conv
 from .modules.roi_rotate import ROIRotate
 from .modules.crnn import CRNN
 from .keys import keys
-from ..utils.bbox import Toolbox
 from ..data_loader.datautils import is_bbox8_ok
 
 
@@ -62,6 +61,16 @@ class FOTSModel:
         self.detector.train()
         self.recognizer.train()
 
+    def train_detector(self):
+        self.sharedConv.train()
+        self.detector.train()
+        self.recognizer.eval()
+
+    def train_recognizer(self):
+        self.sharedConv.eval()
+        self.detector.eval()
+        self.recognizer.train()
+
     def eval(self):
         self.sharedConv.eval()
         self.detector.eval()
@@ -100,7 +109,7 @@ class FOTSModel:
         score_map = self.detector(feature_map)
 
         if self.training:
-            boxes_norm = boxes[:, :8] / 4
+            boxes_norm = boxes / 4.0
             rois, lengths, indices = self.get_cropped_padded_features(feature_map, boxes_norm, image_files)
             pred_mapping = mapping
             pred_boxes = boxes
@@ -112,17 +121,17 @@ class FOTSModel:
             pred_mapping = []
             for i in range(score.shape[0]):
                 s = score[i, :, :, 0]
-                bb = Toolbox.detect(score_map=s, score_map_thresh=self.score_map_threshold)
+                bb = self.get_bb_from_score_map(score_map=s)
                 if not is_bbox8_ok(bb):
                     h, w = s.shape
-                    bb = np.array([0, 0, w, 0, w, h, 0, h, 1])
+                    bb = np.array([0, 0, w, 0, w, h, 0, h])
                 pred_mapping.append(i)
                 pred_boxes.append(bb)
 
             if len(pred_mapping) > 0:
                 pred_boxes = np.array(pred_boxes).astype(np.float32)
                 pred_mapping = np.array(pred_mapping)
-                pred_boxes_norm = pred_boxes[:, :8] / 4
+                pred_boxes_norm = pred_boxes / 4.0
                 rois, lengths, indices = self.get_cropped_padded_features(feature_map, pred_boxes_norm, image_files)
             else:
                 return score_map, (None, None), pred_boxes, pred_mapping, None
@@ -163,6 +172,33 @@ class FOTSModel:
         cropped_padded_features = cropped_padded_features[indices]
 
         return cropped_padded_features, lengths, indices
+
+    def get_bb_from_score_map(self, score_map):
+        '''
+        Restore text boxes from score map
+        :param score_map:
+        :param score_map_thresh: threshold for score map
+        :return:
+        '''
+        if len(score_map.shape) == 4:
+            score_map = score_map[0, :, :, 0]
+        h, w = score_map.shape
+        x1, y1, x2, y2, x3, y3, x4, y4 = 0, 0, w, 0, w, h, 0, h
+        yx_scores = np.argwhere(score_map >= self.score_map_threshold)
+        if len(yx_scores) > 0:
+            min_y, max_y = np.min(yx_scores[:, 0]), np.max(yx_scores[:, 0])
+            min_x, max_x = np.min(yx_scores[:, 1]), np.max(yx_scores[:, 1])
+            if int(max_y) == int(min_y):
+                min_y, max_y = 0, h
+            if max_y < min_y:
+                min_y, max_y = max_y, min_y
+            if int(max_x) == int(min_x):
+                min_x, max_x = 0, w
+            if max_x < min_x:
+                min_x, max_x = max_x, min_x
+            return np.array([min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y])
+        else:
+            return np.array([x1, y1, x2, y2, x3, y3, x4, y4])
 
 class Recognizer(BaseModel):
 

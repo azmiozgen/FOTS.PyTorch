@@ -13,8 +13,13 @@ from FOTS.utils.bbox import Toolbox
 logging.basicConfig(level=logging.INFO, format='')
 
 
-def main(config, resume):
+def main(config_file, resume):
     train_logger = Logger()
+
+    ## Load config file and resume checkpoint
+    assert os.path.isfile(config_file), f'{config_file} config not found'
+    with open(config_file, 'r') as f:
+        config = json.load(f)
 
     if config['data_loader']['dataset'] == 'price_tag':
         from FOTS.data_loader import PriceTagDataLoaderFactory
@@ -26,28 +31,11 @@ def main(config, resume):
     model = eval(config['arch'])(config)
     # model.summary()
 
+    ## Print info
+    print('Model:', config['arch'])
+    print('Mode:', config['model']['mode'])
     print('Training size:', len(data_loader.train_dataset))
     print('Validation size:', len(data_loader.val_dataset))
-
-    # for batch_i, gt in enumerate(train):
-    #     image_files, images, score_maps, geo_maps, training_masks, transcriptions, boxes, mapping = gt
-    #     print('image_files:', image_files)
-    #     print('images', images.shape)
-    #     print('transcriptions', transcriptions)
-    #     print('boxes', boxes)
-    #     print('score_maps', score_maps.shape)
-    #     print('geo_maps', geo_maps.shape)
-    #     print('training_masks', training_masks.shape)
-    #     print('mapping', mapping)
-    #     # transformed_image_filename = image_filename_wo_ext + '_transformed.' + ext
-    #     # transformed_image_file = os.path.join(self.visualization_dir, transformed_image_filename)
-    #     # cv2.imwrite(transformed_image_file, cv2.cvtColor(images, cv2.COLOR_BGR2RGB))
-    #     # self.visualize(transformed_image_file, rectangles[0], transcriptions[0])
-    #     break
-
-    # for batch_i, gt in enumerate(val):
-    #     print(batch_i, gt)
-    #     break
 
     loss = eval(config['loss'])(config)
     metrics = [eval(metric) for metric in config['metrics']]  ## precision, recall, hmean (f1)
@@ -55,10 +43,10 @@ def main(config, resume):
     trainer = Trainer(model, loss, metrics,
             resume=resume,
             config=config,
+            config_file=config_file,
             data_loader=train,
             valid_data_loader=val,
-            train_logger=train_logger,
-            toolbox=Toolbox)
+            train_logger=train_logger)
 
     trainer.train()
 
@@ -73,17 +61,7 @@ if __name__ == '__main__':
                         help='path to latest checkpoint (default: None)')
 
     args = parser.parse_args()
+    config_file = args.config
+    resume = args.resume
 
-    config = None
-    if args.config is not None:
-        config = json.load(open(args.config))
-        path = os.path.join(config['trainer']['save_dir'], config['name'])
-        #assert not os.path.exists(path), "Path {} already exists!".format(path)
-    else:
-        if args.resume is not None:
-            logger.warning('Warning: --config overridden by --resume')
-            config = torch.load(args.resume, map_location='cpu')['config']
-
-    assert config is not None
-
-    main(config, args.resume)
+    main(config_file, resume)

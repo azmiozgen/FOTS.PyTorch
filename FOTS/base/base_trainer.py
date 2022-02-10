@@ -1,10 +1,13 @@
-import os
-import math
 import json
 import logging
+import math
+import os
+import shutil
+
 import torch
 import torch.optim as optim
 from tensorboardX import SummaryWriter
+
 from ..utils.util import ensure_dir
 
 
@@ -12,8 +15,9 @@ class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, model, loss, metrics, resume, config, train_logger=None):
+    def __init__(self, model, loss, metrics, resume, config, config_file, train_logger=None):
         self.config = config
+        self.config_file = config_file
         self.logger = logging.getLogger(self.__class__.__name__)
         self.model = model
         self.loss = loss
@@ -23,6 +27,9 @@ class BaseTrainer:
         self.save_freq = config['trainer']['save_freq']
         self.verbosity = config['trainer']['verbosity']
         self.summary_writer = SummaryWriter()
+
+        ## Copy config file to summary writer folder ('runs/')
+        shutil.copy(self.config_file, self.summary_writer.file_writer.get_logdir())
 
         if torch.cuda.is_available():
             if config['cuda']:
@@ -89,18 +96,6 @@ class BaseTrainer:
                         log['val_' + metric.__name__] = result['val_metrics'][i]
                 else:
                     log[key] = value
-            # for key, value in result.items():
-            #     if key == 'metrics':
-            #         for i, metric in enumerate(self.metrics):
-            #             log[metric.__name__] = result['metrics'][i]
-            #     else:
-            #         log[key] = value
-            # for key, value in result_val.items():
-            #     if key == 'val_metrics':
-            #         for i, metric in enumerate(self.metrics):
-            #             log['val_' + metric.__name__] = result['val_metrics'][i]
-            #     else:
-            #         log[key] = value
 
             if self.train_logger is not None:
                 self.train_logger.add_entry(log)
@@ -124,19 +119,15 @@ class BaseTrainer:
             self.summary_writer.add_scalar('Train_loss', result['loss'], epoch)
             self.summary_writer.add_scalar('Train_detection_loss', result['det_loss'], epoch)
             self.summary_writer.add_scalar('Train_recognition_loss', result['rec_loss'], epoch)
-            # self.summary_writer.add_scalar('Train_precision', result['precision'], epoch)
-            # self.summary_writer.add_scalar('Train_recall', result['recall'], epoch)
-            self.summary_writer.add_scalar('Train_hmean_f1', result['hmean'], epoch)
             self.summary_writer.add_scalar('Train_text_accuracy', result['text_accuracy'], epoch)
             self.summary_writer.add_scalar('Train_value_error', result['value_error'], epoch)
+            self.summary_writer.add_scalar('Train_time', result['time'], epoch)
             self.summary_writer.add_scalar('Val_loss', result['val_loss'], epoch)
             self.summary_writer.add_scalar('Val_detection_loss', result['val_det_loss'], epoch)
             self.summary_writer.add_scalar('Val_recognition_loss', result['val_rec_loss'], epoch)
-            # self.summary_writer.add_scalar('Val_precision', result['val_precision'], epoch)
-            # self.summary_writer.add_scalar('Val_recall', result['val_recall'], epoch)
-            self.summary_writer.add_scalar('Val_hmean_f1', result['val_hmean'], epoch)
             self.summary_writer.add_scalar('Val_text_accuracy', result['val_text_accuracy'], epoch)
             self.summary_writer.add_scalar('Val_value_error', result['val_value_error'], epoch)
+            self.summary_writer.add_scalar('Val_time', result['val_time'], epoch)
         self.summary_writer.close()
 
     def _log_memory_useage(self):

@@ -38,12 +38,10 @@ def clip_box(bbox, clip_box, alpha):
     return bbox
 
 def collate_fn(batch):
-    # image_files, image, score_map, training_mask, transcriptions, boxes = zip(*batch)
     image_files, image, score_map, transcriptions, boxes = zip(*batch)
     bs = len(score_map)
     images = []
     score_maps = []
-    # training_masks = []
 
     for i in range(bs):
         if image[i] is not None:
@@ -53,20 +51,14 @@ def collate_fn(batch):
             b = torch.from_numpy(score_map[i])
             b = b.permute(2, 0, 1)
             score_maps.append(b)
-            # c = torch.from_numpy(training_mask[i])
-            # c = c.permute(2, 0, 1)
-            # training_masks.append(c)
 
     images = torch.stack(images, 0)
     score_maps = torch.stack(score_maps, 0)
-    # training_masks = torch.stack(training_masks, 0)
 
     mapping = np.arange(len(transcriptions))
     bboxes = np.stack(boxes, axis=0)
     transcriptions = np.stack(transcriptions).flatten()
-    bboxes = np.concatenate([bboxes, np.ones((len(bboxes), 1))], axis=1).astype(np.float32)
 
-    # return image_files, images, score_maps, training_masks, transcriptions, bboxes, mapping
     return image_files, images, score_maps, transcriptions, bboxes, mapping
 
 def denormalize(image, from_min, from_max, to_min, to_max):

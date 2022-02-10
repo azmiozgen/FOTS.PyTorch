@@ -1,5 +1,4 @@
 import cv2
-import time
 import math
 import os
 import numpy as np
@@ -186,9 +185,9 @@ class Toolbox:
                 min_x, max_x = 0, w
             if max_x < min_x:
                 min_x, max_x = max_x, min_x
-            return np.array([min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y, 1])
+            return np.array([min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y])
         else:
-            return np.array([x1, y1, x2, y2, x3, y3, x4, y4, 1])
+            return np.array([x1, y1, x2, y2, x3, y3, x4, y4])
 
     @staticmethod
     def sort_poly(p):
