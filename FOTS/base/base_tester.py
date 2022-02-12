@@ -46,6 +46,7 @@ class BaseTester:
         self.logger.info("Loading model: {} ...".format(model_file))
         model = torch.load(model_file)
         self.model.load_state_dict(model['state_dict'])
+        self.model_name = os.path.basename(os.path.dirname(model_file))
         self.model_filename, self.model_file_ext = os.path.splitext(os.path.basename(model_file))
 
     def _log_memory_usage(self):
