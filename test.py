@@ -34,6 +34,7 @@ def main(config_file, model_file):
     ## Print info
     print('Model:', config['arch'])
     print('Test size:', len(data_loader.test_dataset))
+    print('Test batch size:', config['tester']['batch_size'])
 
     metrics = None ## TODO: add metrics
 
@@ -41,7 +42,7 @@ def main(config_file, model_file):
             config=config,
             data_loader=test)
 
-    # tester.test()
+    tester.test()
 
 
 if __name__ == '__main__':

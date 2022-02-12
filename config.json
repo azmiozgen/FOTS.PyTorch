@@ -48,6 +48,7 @@
         "monitor_mode": "min"
     },
     "tester": {
+        "batch_size": 128,
         "save_dir": "output/",
         "verbosity": 2
     },
