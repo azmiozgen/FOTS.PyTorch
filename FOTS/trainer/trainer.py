@@ -1,13 +1,14 @@
 import time
+from collections import OrderedDict
 
 import numpy as np
 import torch
 import torchvision
+
 from ..base import BaseTrainer
-from ..utils.bbox import Toolbox
+from ..data_loader.datautils import draw_text_tensor
 from ..model.keys import keys
 from ..utils.util import strLabelConverter
-from ..data_loader.datautils import draw_text_tensor
 
 class Trainer(BaseTrainer):
     """
@@ -31,6 +32,31 @@ class Trainer(BaseTrainer):
         self.mode = self.config['model']['mode']
         self.valid = True if valid_data_loader is not None else False
         self.valid_data_loader = valid_data_loader
+
+    def _resume_checkpoint(self, resume_path):
+        self.logger.info("Loading checkpoint: {} ...".format(resume_path))
+        checkpoint = torch.load(resume_path, map_location=self.device)
+        self.start_epoch = checkpoint['epoch'] + 1
+        self.monitor_best = checkpoint['monitor_best']
+        try:
+            self.model.load_state_dict(checkpoint['state_dict'])
+        except RuntimeError:  ## Load nn.DataParallel
+            for s in ['0', '1', '2']:  ## SharedConv, Detector, Recognizer
+                new_state_dict = OrderedDict()
+                for k, v in checkpoint['state_dict'][s].items():
+                    name = k.replace('module.', '')
+                    new_state_dict[name] = v
+                checkpoint['state_dict'][s] = new_state_dict
+            self.model.load_state_dict(checkpoint['state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        if self.with_cuda:
+            for state in self.optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.cuda(torch.device('cuda'))
+        self.train_logger = checkpoint['logger']
+        #self.config = checkpoint['config']
+        self.logger.info("Checkpoint '{}' (epoch {}) loaded".format(resume_path, self.start_epoch))
 
     def _to_device(self, *tensors):
         t = []

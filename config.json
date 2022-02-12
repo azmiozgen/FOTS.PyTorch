@@ -6,7 +6,7 @@
         "annotation_ext": "json",
         "batch_size": 8,
         "dataset": "price_tag",
-        "data_dirname": "price_tag_small",
+        "data_dirname": "price_tag",
         "image_ext": "jpg",
         "input_size": 256,
         "random_blur_ksize_sigma": [5, 1.0],
@@ -46,6 +46,10 @@
         "verbosity": 2,
         "monitor": "val_loss",
         "monitor_mode": "min"
+    },
+    "tester": {
+        "save_dir": "output/",
+        "verbosity": 2
     },
     "arch" : "FOTSModel",
     "model" : {

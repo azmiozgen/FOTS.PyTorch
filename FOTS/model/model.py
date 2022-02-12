@@ -13,7 +13,6 @@ from ..data_loader.datautils import is_bbox8_ok
 
 class FOTSModel:
     def __init__(self, config):
-
         self.mode = config['model']['mode']
         self.score_map_threshold = config['model']['score_map_threshold']
 
@@ -187,6 +186,7 @@ class FOTSModel:
             return np.array([min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y])
         else:
             return np.array([x1, y1, x2, y2, x3, y3, x4, y4])
+
 
 class Recognizer(BaseModel):
 

@@ -17,8 +17,10 @@ class PriceTagDataLoaderFactory(BaseDataLoader):
         data_root = os.path.join(datasets_dir, data_dirname)
         train_data_root = os.path.join(data_root, 'train')
         val_data_root = os.path.join(data_root, 'val')
+        test_data_root = os.path.join(data_root, 'test')
         self.train_dataset = PriceTagDataset(train_data_root, config=config, train_mode=True)
         self.val_dataset = PriceTagDataset(val_data_root, config=config, train_mode=False)
+        self.test_dataset = PriceTagDataset(test_data_root, config=config, train_mode=False)
         self.workers = self.config['data_loader']['workers']
 
     def train(self):
@@ -37,3 +39,11 @@ class PriceTagDataLoaderFactory(BaseDataLoader):
                 shuffle=shuffle,
                 collate_fn=collate_fn)
         return val_loader
+
+    def test(self):
+        test_loader = torchdata.DataLoader(self.test_dataset,
+                num_workers=self.num_workers,
+                batch_size=min(len(self.test_dataset), self.batch_size),
+                shuffle=True,
+                collate_fn=collate_fn)
+        return test_loader

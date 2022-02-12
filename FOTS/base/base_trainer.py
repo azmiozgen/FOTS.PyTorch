@@ -10,7 +10,6 @@ from tensorboardX import SummaryWriter
 
 from ..utils.util import ensure_dir
 
-
 class BaseTrainer:
     """
     Base class for all trainers
@@ -52,7 +51,7 @@ class BaseTrainer:
         self.model.to(self.device)
 
         self.logger.debug('Model is initialized.')
-        self._log_memory_useage()
+        self._log_memory_usage()
 
         self.train_logger = train_logger
 
@@ -84,7 +83,7 @@ class BaseTrainer:
             try:
                 result = self._train_epoch(epoch)
             except torch.cuda.CudaError:
-                self._log_memory_useage()
+                self._log_memory_usage()
 
             log = {'epoch': epoch}
             for key, value in result.items():
@@ -130,7 +129,7 @@ class BaseTrainer:
             self.summary_writer.add_scalar('Val_time', result['val_time'], epoch)
         self.summary_writer.close()
 
-    def _log_memory_useage(self):
+    def _log_memory_usage(self):
         if not self.with_cuda: return
 
         template = """Memory Usage: \n{}"""
@@ -197,7 +196,7 @@ class BaseTrainer:
         :param resume_path: Checkpoint path to be resumed
         """
         self.logger.info("Loading checkpoint: {} ...".format(resume_path))
-        checkpoint = torch.load(resume_path)
+        checkpoint = torch.load(resume_path, map_location=self.device)
         self.start_epoch = checkpoint['epoch'] + 1
         self.monitor_best = checkpoint['monitor_best']
         self.model.load_state_dict(checkpoint['state_dict'])

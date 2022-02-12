@@ -3,18 +3,15 @@ import json
 import logging
 import os
 
-from FOTS.logger.logger import Logger
 from FOTS.model.model import FOTSModel
-from FOTS.model.loss import FOTSLoss
-from FOTS.trainer.trainer import Trainer
+from FOTS.tester import Tester
 
 logging.basicConfig(level=logging.INFO, format='')
 
 
-def main(config_file, resume):
-    train_logger = Logger()
+def main(config_file, model_file):
 
-    ## Load config file and resume checkpoint
+    ## Load config and model file
     assert os.path.isfile(config_file), f'{config_file} config not found'
     with open(config_file, 'r') as f:
         config = json.load(f)
@@ -22,8 +19,7 @@ def main(config_file, resume):
     if config['data_loader']['dataset'] == 'price_tag':
         from FOTS.data_loader import PriceTagDataLoaderFactory
         data_loader = PriceTagDataLoaderFactory(config)
-        train = data_loader.train()
-        val = data_loader.val()
+        test = data_loader.test()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in config['gpus']])
 
@@ -37,42 +33,26 @@ def main(config_file, resume):
 
     ## Print info
     print('Model:', config['arch'])
-    print('Mode:', config['model']['mode'])
-    print('Training size:', len(data_loader.train_dataset))
-    print('Validation size:', len(data_loader.val_dataset))
+    print('Test size:', len(data_loader.test_dataset))
 
-    ## Get loss
-    loss_name = config['loss']
-    if loss_name == 'FOTSLoss':
-        loss = FOTSLoss(config)
-    else:
-        raise NotImplementedError(f'{loss_name} not implemented')
+    metrics = None ## TODO: add metrics
 
-    ## Get metrics
-    metrics = None
-
-    trainer = Trainer(model, loss, metrics,
-            resume=resume,
+    tester = Tester(model, model_file, metrics,
             config=config,
-            config_file=config_file,
-            data_loader=train,
-            valid_data_loader=val,
-            train_logger=train_logger)
+            data_loader=test)
 
-    # trainer.train()
+    # tester.test()
 
 
 if __name__ == '__main__':
-    logger = logging.getLogger()
-
     parser = argparse.ArgumentParser(description='PyTorch Template')
+    parser.add_argument('-m', '--model', default=None, type=str, required=True,
+                        help='Model file (default: None)')
     parser.add_argument('-c', '--config', default='config.json', type=str,
                         help='config file path (default: config.json)')
-    parser.add_argument('-r', '--resume', default=None, type=str,
-                        help='path to latest checkpoint (default: None)')
 
     args = parser.parse_args()
     config_file = args.config
-    resume = args.resume
+    model_file = args.model
 
-    main(config_file, resume)
+    main(config_file, model_file)
