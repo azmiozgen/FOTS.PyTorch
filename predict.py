@@ -38,7 +38,9 @@ def main(model_config, prediction_config, model_file, images):
     print('Model:', model_config['arch'])
     print('Sample size:', predictor.dataset_size)
 
-    predictor.predict()
+    result = predictor.predict()
+
+    return result
 
 def read_images(image_files):
     return [cv2.imread(image_file) for image_file in image_files]

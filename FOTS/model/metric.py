@@ -3,13 +3,6 @@ from difflib import SequenceMatcher
 import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-from ..utils.eval_tools.icdar2015 import eval as icdar_eval
-
-def fots_metric(pred, gt):
-    config = icdar_eval.default_evaluation_params()
-    output = icdar_eval.eval(pred, gt, config)
-    return output['method']['precision'], output['method']['recall'], output['method']['hmean']
-
 def get_char_similarity(pred, gt):
     return SequenceMatcher(None, pred, gt).ratio()
 
