@@ -60,6 +60,19 @@ def collate_fn(batch):
 
     return image_files, images, score_maps, transcriptions, bboxes
 
+def collate_images(batch):
+    bs = len(batch)
+    images = []
+    for i in range(bs):
+        image = batch[i]
+        if image is not None:
+            a = torch.from_numpy(image)
+            a = a.permute(2, 0, 1)
+            images.append(a)
+    images = torch.stack(images, 0)
+
+    return images
+
 def denormalize(image, from_min, from_max, to_min, to_max):
     from_range = from_max - from_min
     to_range = to_max - to_min
@@ -236,6 +249,8 @@ def resize(image, bbox, size, interpolation=cv2.INTER_NEAREST):
     _h, _w, _ = image.shape
     h, w = size
     image = cv2.resize(image, dsize=(h, w), interpolation=interpolation)
+    if bbox == [] or bbox is None:
+        return image, []
     ratio_h = h / _h
     ratio_w = w / _w
     bbox *= np.array([ratio_w, ratio_h, ratio_w, ratio_h])

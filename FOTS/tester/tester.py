@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import os
 import time
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,7 +55,7 @@ class Tester(BaseTester):
         text_accuracy, text_accuracy_wo_decimal, char_similarity, value_mae = 0.0, 0.0, 0.0, 0.0
         start_time = time.time()
         with torch.no_grad():
-            for batch_idx, gt in enumerate(self.data_loader):
+            for batch_idx, gt in enumerate(tqdm(self.data_loader)):
                 try:
                     image_files, _image, score_map, transcriptions, boxes = gt
                     image, score_map = self._to_device(_image.clone(), score_map.clone())
@@ -116,7 +117,7 @@ class Tester(BaseTester):
 
         ## Make grid images proper numpy array
         grids = [gt_score_map_grid, image_grid, gt_transcriptions_grid, pred_score_map_grid, pred_transcriptions_grid]
-        grid_titles = ['GT Masks', 'Images', 'GT Transcriptions', 'Pred Masks', 'Pred Transcriptions']
+        grid_titles = ['GT Masks', 'Sample Images', 'GT Transcriptions', 'Pred Masks', 'Pred Transcriptions']
         grids = [grid.cpu().numpy().transpose(1, 2, 0) for grid in grids]
 
         total_text_accuracy = text_accuracy / self.len_data_loader
@@ -129,7 +130,7 @@ class Tester(BaseTester):
 \n\tText accuracy without decimal: {:.2f}\
 \n\tCharacter similarity: {:.2f}\
 \n\tValue MAE: {:.2f}'.format(
-                len(self.data_loader.dataset),
+                self.dataset_size,
                 total_time,
                 total_text_accuracy,
                 total_text_accuracy_wo_decimal,
@@ -156,7 +157,8 @@ class Tester(BaseTester):
         n_cols=3
         n_rows=2
 
-        title = self.model_name + f'_epoch{self.epoch_record}'
+        n_samples = result['size']
+        title = self.model_name + f'_epoch{self.epoch_record}_samples{n_samples}'
         output_filename = title + '_test_result.png'
         output_file = os.path.join(self.output_dir, output_filename)
 

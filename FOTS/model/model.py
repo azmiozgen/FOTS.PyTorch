@@ -145,7 +145,8 @@ class FOTSModel:
 
         for i in range(n_batches):
             if not is_bbox8_ok(boxes[i]):
-                print('BBOX8 NOT OK ' + str(boxes[i]) + ' ' + str(image_files[i]))
+                if image_files is not None or image_files != []:
+                    print('BBOX8 NOT OK ' + str(boxes[i]) + ' ' + str(image_files[i]))
                 h, w = feature_map.shape[2:]
                 boxes[i] = np.array([0, 0, w, 0, w, h, 0, h])
             w = boxes[i, 2] - boxes[i, 0]

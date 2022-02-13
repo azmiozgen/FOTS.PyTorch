@@ -226,6 +226,36 @@ class PriceTagDataset(Dataset):
         image_draw.text((x1, y1 - fontsize), transcription, fill='red', font=font)
         image.save(os.path.join(self.visualization_dir, os.path.basename(image_file)))
 
+class PriceTagPredictionDataset(Dataset):
+    def __init__(self, images, input_size=256):
+        self.images = images
+        self.input_size = input_size
+
+    def __getitem__(self, index):
+        image = self.images[index]
+        image = self.__transform(image)
+
+        return image
+
+    def __len__(self):
+        return len(self.images)
+
+    def __transform(self, image):
+        ## Resize image to input size as letterbox
+        try:
+            image, _ = Resize(self.input_size)(image, [])
+        except Exception as e:
+            print(e, 'Resize letterbox failed')
+            image, _ = resize(image, [], (self.input_size, self.input_size))
+
+        ## Normalize image
+        image = 2 * ((image - np.min(image)) / (np.max(image) - np.min(image) + 1e-10)) - 1  ## [-1, 1]
+
+        ## Arrange
+        image = image[:, :, ::-1].astype(np.float32)  # bgr -> rgb
+
+        return image
+
 class HorizontalFlip(object):
     """Randomly horizontally flips the Image with the probability *p*
     Parameters
@@ -612,6 +642,8 @@ class Resize(object):
     def __call__(self, img, bboxes):
         w, h = img.shape[1], img.shape[0]
         img = letterbox_image(img, self.inp_dim)
+        if bboxes == [] or bboxes is None:
+            return img, bboxes
 
         scale = min(self.inp_dim / (h + 1e-10), self.inp_dim / (w + 1e-10))
         bboxes[:, :4] *= scale
@@ -623,7 +655,6 @@ class Resize(object):
         del_h = (inp_dim - new_h) / 2
         del_w = (inp_dim - new_w) / 2
         add_matrix = np.array([[del_w, del_h, del_w, del_h]]).astype(int)
-
         bboxes[:,:4] += add_matrix
         img = img.astype(np.uint8)
 

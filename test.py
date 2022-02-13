@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='')
 
 def main(config_file, model_file):
 
-    ## Load config and model file
+    ## Load config
     assert os.path.isfile(config_file), f'{config_file} config not found'
     with open(config_file, 'r') as f:
         config = json.load(f)
