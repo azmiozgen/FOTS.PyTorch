@@ -1,12 +1,12 @@
 {
     "name": "FOTS",
     "cuda": true,
-    "gpus": [0],
+    "gpus": [0, 1],
     "data_loader": {
         "annotation_ext": "json",
-        "batch_size": 8,
+        "batch_size": 64,
         "dataset": "price_tag",
-        "data_dirname": "price_tag_small",
+        "data_dirname": "price_tag",
         "image_ext": "jpg",
         "input_size": 256,
         "random_blur_ksize_sigma": [5, 1.0],
@@ -31,7 +31,7 @@
     },
     "optimizer_type": "AdamW",
     "optimizer": {
-        "lr": 0.0001,
+        "lr": 1e-4,
         "betas": [0.9, 0.999],
         "eps": 1e-8,
         "weight_decay": 0.01,
@@ -44,8 +44,8 @@
         "save_dir": "saved/",
         "save_freq": 10,
         "verbosity": 2,
-        "monitor": "val_loss",
-        "monitor_mode": "min"
+        "monitor": "val_char_similarity",
+        "monitor_mode": "max"
     },
     "tester": {
         "batch_size": 128,
@@ -57,7 +57,7 @@
         "mode": "united",
         "dice_smooth": 1.0,
         "dropout": 0,
-        "recognizer_n_hidden": 256,
+        "recognizer_n_hidden": 128,
         "score_map_threshold": 0.5
     }
 }

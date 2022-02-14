@@ -180,10 +180,10 @@ class Trainer(BaseTrainer):
         total_time = round(time.time() - start_time, 2)
         if self.verbosity >= 2:
             self.logger.info('Train: Epoch: {} [{} samples, {} seconds] \
-Loss: {:.6f} \
-Det Loss: {:.6f} \
-Rec Loss: {:.6f} \
-Char similarity'.format(
+Loss: {:.2f} \
+Det Loss: {:.2f} \
+Rec Loss: {:.2f} \
+Char similarity {:.2f}'.format(
                     epoch,
                     len(self.data_loader.dataset),
                     total_time,
@@ -246,8 +246,8 @@ Char similarity'.format(
                     pred_transcriptions = np.array(pred_transcriptions)
 
                     if batch_idx == 0:
-                        print('Validation gt transcriptions:', gt_transcriptions)
-                        print('Validation pred transcriptions:', pred_transcriptions)
+                        print('Validation gt transcriptions:', gt_transcriptions[:8])
+                        print('Validation pred transcriptions:', pred_transcriptions[:8])
 
                     ## Write summary writer images and text
                     if epoch % self.save_freq == 0 and batch_idx == 0:
@@ -308,10 +308,10 @@ Char similarity'.format(
         total_time = round(time.time() - start_time, 2)
         if self.verbosity >= 2:
             self.logger.info('Val: Epoch: {} [{} samples, {:.2f} seconds] \
-Loss: {:.6f} \
-Det Loss: {:.6f} \
-Rec Loss: {:.6f} \
-Char similarity'.format(
+Loss: {:.4f} \
+Det Loss: {:.4f} \
+Rec Loss: {:.4f} \
+Char similarity {:.2f}'.format(
                     epoch,
                     len(self.valid_data_loader.dataset),
                     total_time,

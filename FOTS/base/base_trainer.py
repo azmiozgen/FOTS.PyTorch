@@ -189,9 +189,9 @@ class BaseTrainer:
         torch.save(state, filename)
         if save_best:
             os.rename(filename, os.path.join(self.checkpoint_dir, 'model_best.pth.tar'))
-            self.logger.info("Saving current best: {} ...".format('model_best.pth.tar'))
+            self.logger.info("Saving current best: {}".format('model_best.pth.tar'))
         else:
-            self.logger.info("Saving checkpoint: {} ...".format(filename))
+            self.logger.info("Saving checkpoint: {}".format(filename))
 
     def _resume_checkpoint(self, resume_path):
         """
@@ -199,7 +199,7 @@ class BaseTrainer:
 
         :param resume_path: Checkpoint path to be resumed
         """
-        self.logger.info("Loading checkpoint: {} ...".format(resume_path))
+        self.logger.info("Loading checkpoint: {}".format(resume_path))
         checkpoint = torch.load(resume_path, map_location=self.device)
         self.start_epoch = checkpoint['epoch'] + 1
         self.monitor_best = checkpoint['monitor_best']

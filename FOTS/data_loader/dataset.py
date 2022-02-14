@@ -115,7 +115,8 @@ class PriceTagDataset(Dataset):
         h, w = image.shape[:2]
 
         ## Decide critical bbox
-        critical = any([(b < 0.05) or (b > 0.95) for b in bbox])
+        t = 0.05
+        critical = any([(b < t) or (b > (1.0 - t)) for b in bbox])
 
         ## Renormalize bbox
         bbox *= np.array([w, h, w, h])
