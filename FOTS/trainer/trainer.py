@@ -329,6 +329,9 @@ Char similarity'.format(
         }
 
     def get_transcription_value(self, text, delimiter=','):
+        text = text.strip()
+        if text == '':
+            return 0
         if delimiter in text:
             whole, decimal = text.split(delimiter)[:2]
         else:
