@@ -6,7 +6,7 @@
         "annotation_ext": "json",
         "batch_size": 64,
         "dataset": "price_tag",
-        "data_dirname": "price_tag",
+        "data_dirname": "price_tag_small",
         "image_ext": "jpg",
         "input_size": 256,
         "random_blur_ksize_sigma": [5, 1.0],
@@ -24,10 +24,17 @@
         "validation_split": 0,
         "shuffle": true
     },
-    "lr_scheduler_type": "",
-    "lr_scheduler_freq": 10000,
+    "lr_scheduler_type": "ReduceLROnPlateau",
     "lr_scheduler": {
-            "gamma": 0.94
+        "mode": "min",
+        "factor": 0.5,
+        "patience": 10,
+        "threshold": 1e-4,
+        "threshold_mode": "rel",
+        "cooldown": 0,
+        "min_lr": 1e-6,
+        "eps": 1e-8,
+        "verbose": true
     },
     "optimizer_type": "AdamW",
     "optimizer": {
@@ -40,9 +47,9 @@
     "loss": "FOTSLoss",
     "metrics": ["fots_metric"],
     "trainer": {
-        "epochs": 1,
+        "epochs": 100,
         "save_dir": "saved/",
-        "save_freq": 10,
+        "save_freq": 1000,
         "verbosity": 2,
         "monitor": "val_char_similarity",
         "monitor_mode": "max"

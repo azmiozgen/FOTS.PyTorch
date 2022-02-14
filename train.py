@@ -38,6 +38,8 @@ def main(config_file, resume):
     ## Print info
     print('Model:', config['arch'])
     print('Mode:', config['model']['mode'])
+    print('Batch size:', config['data_loader']['batch_size'])
+    print('Learning rate:', config['optimizer']['lr'])
     print('Training size:', len(data_loader.train_dataset))
     print('Validation size:', len(data_loader.val_dataset))
 

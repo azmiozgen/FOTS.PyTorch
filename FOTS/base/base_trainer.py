@@ -62,7 +62,6 @@ class BaseTrainer:
             config['lr_scheduler_type'], None)
         if self.lr_scheduler:
             self.lr_scheduler = self.lr_scheduler(self.optimizer, **config['lr_scheduler'])
-            self.lr_scheduler_freq = config['lr_scheduler_freq']
         self.monitor = config['trainer']['monitor']
         self.monitor_mode = config['trainer']['monitor_mode']
         assert self.monitor_mode == 'min' or self.monitor_mode == 'max'
@@ -87,14 +86,14 @@ class BaseTrainer:
 
             log = {'epoch': epoch}
             for key, value in result.items():
-                if key == 'metrics':
-                    for i, metric in enumerate(self.metrics):
-                        log[metric.__name__] = result['metrics'][i]
-                elif key == 'val_metrics':
-                    for i, metric in enumerate(self.metrics):
-                        log['val_' + metric.__name__] = result['val_metrics'][i]
-                else:
-                    log[key] = value
+                # if key == 'metrics':
+                #     for i, metric in enumerate(self.metrics):
+                #         log[metric.__name__] = result['metrics'][i]
+                # elif key == 'val_metrics':
+                #     for i, metric in enumerate(self.metrics):
+                #         log['val_' + metric.__name__] = result['val_metrics'][i]
+                # else:
+                log[key] = value
 
             if self.train_logger is not None:
                 self.train_logger.add_entry(log)
@@ -111,9 +110,8 @@ class BaseTrainer:
             if epoch % self.save_freq == 0:
                 self._save_checkpoint(epoch, log)
             if self.lr_scheduler:
-                self.lr_scheduler.step()
-                lr = self.lr_scheduler.get_lr()[0]
-                self.logger.info('New Learning Rate: {:.8f}'.format(lr))
+                self.lr_scheduler.step(log[self.monitor])
+                lr = self.lr_scheduler.optimizer.param_groups[0]['lr']
 
             self.summary_writer.add_scalar('Train_loss', result['loss'], epoch)
             self.summary_writer.add_scalar('Train_detection_loss', result['det_loss'], epoch)
@@ -131,6 +129,7 @@ class BaseTrainer:
             self.summary_writer.add_scalar('Val_char_similarity', result['val_char_similarity'], epoch)
             self.summary_writer.add_scalar('Val_value_mae', result['val_value_mae'], epoch)
             self.summary_writer.add_scalar('Val_time', result['val_time'], epoch)
+            self.summary_writer.add_scalar('Learning_rate', lr, epoch)
         self.summary_writer.close()
 
     def _log_memory_usage(self):
