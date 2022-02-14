@@ -8,6 +8,7 @@ import torchvision
 from ..base import BaseTrainer
 from ..data_loader.datautils import draw_text_tensor
 from ..model.keys import keys
+from ..model.metric import get_mean_char_similarity, mae
 from ..utils.util import strLabelConverter
 
 class Trainer(BaseTrainer):
@@ -80,8 +81,7 @@ class Trainer(BaseTrainer):
             self.model.train()
 
         total_loss, total_det_loss, total_rec_loss = 0, 0, 0
-        text_accuracy = 0.0
-        value_error = 0.0
+        text_accuracy, text_accuracy_wo_decimal, char_similarity, value_mae = 0.0, 0.0, 0.0, 0.0
         start_time = time.time()
         for batch_idx, gt in enumerate(self.data_loader):
             try:
@@ -90,14 +90,14 @@ class Trainer(BaseTrainer):
 
                 self.optimizer.zero_grad()
                 pred_score_map, pred_recog, pred_boxes, indices = self.model.forward(image_files, image, boxes)
-                transcriptions = transcriptions[indices]
+                gt_transcriptions = transcriptions[indices]
                 image_files = np.array(image_files)[indices]
                 image_visual = _image[indices]
                 pred_boxes = pred_boxes[indices]
                 pred_score_map = pred_score_map[indices]
                 score_map = score_map[indices]
 
-                labels, label_lengths = self.label_converter.encode(transcriptions.tolist())
+                labels, label_lengths = self.label_converter.encode(gt_transcriptions.tolist())
                 labels = labels.to(self.device)
                 label_lengths = label_lengths.to(self.device)
                 recog = (labels, label_lengths)
@@ -125,7 +125,7 @@ class Trainer(BaseTrainer):
                 pred_transcriptions = np.array(pred_transcriptions)
 
                 if batch_idx == 0:
-                    print('Training gt transcriptions:', transcriptions[:8])
+                    print('Training gt transcriptions:', gt_transcriptions[:8])
                     print('Training pred transcriptions:', pred_transcriptions[:8])
 
                 ## Write summary writer images and text
@@ -136,7 +136,7 @@ class Trainer(BaseTrainer):
                     score_map_grid = torchvision.utils.make_grid(score_map)
                     pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
 
-                    gt_transcriptions_tensor = draw_text_tensor(transcriptions)
+                    gt_transcriptions_tensor = draw_text_tensor(gt_transcriptions)
                     gt_transcriptions_grid = torchvision.utils.make_grid(gt_transcriptions_tensor,
                             normalize=True, value_range=(0, 1))
 
@@ -151,43 +151,52 @@ class Trainer(BaseTrainer):
                     self.summary_writer.add_image('train_pred_transcriptions', pred_transcriptions_grid, step)
 
                 ## Transcripton accuracy
-                text_accuracy += np.mean(transcriptions == pred_transcriptions)
+                text_accuracy += np.mean(gt_transcriptions == pred_transcriptions)
 
-                ## Value error
-                try:
-                    batch_value_error = 0.0
-                    for tr, pred_tr in zip(transcriptions, pred_transcriptions):
-                        tr1, tr2 = tr.split(',')
-                        tr_value = int(tr1) + int(tr2) / 100.0
-                        pred_tr1, pred_tr2 = pred_tr.split(',')
-                        pred_tr_value = int(pred_tr1) + int(pred_tr2) / 100.0
-                        batch_value_error += abs(tr_value - pred_tr_value) / (tr_value + 1e-10)
-                    value_error += (batch_value_error / len(transcriptions))
-                except ValueError:
-                    value_error += 1.0
+                ## Text without decimal part accuracy
+                gt_trans_wo_decimal = np.array(list(map(lambda s: s.split(',')[0], gt_transcriptions))).astype(str)
+                pred_trans_wo_decimal = np.array(list(map(lambda s: s.split(',')[0], pred_transcriptions))).astype(str)
+                text_accuracy_wo_decimal += np.mean(gt_trans_wo_decimal == pred_trans_wo_decimal)
+
+                ## Char accuracy by SequenceMatcher
+                char_similarity += get_mean_char_similarity(pred_transcriptions, gt_transcriptions)
+
+                ## Value MSE
+                gt_transcription_values = np.array(list(map(lambda s: self.get_transcription_value(s), gt_transcriptions))).astype(np.float32)
+                pred_transcription_values = np.array(list(map(lambda s: self.get_transcription_value(s), pred_transcriptions))).astype(np.float32)
+                value_mae += mae(gt_transcription_values, pred_transcription_values)
 
             except Exception as e:
                 print(e, 'Training failed')
                 raise
 
-        total_time = round(time.time() - start_time, 2)
         avg_loss = total_loss / self.len_data_loader
         avg_det_loss = total_det_loss / self.len_data_loader
         avg_rec_loss = total_rec_loss / self.len_data_loader
+        total_text_accuracy = text_accuracy / self.len_data_loader
+        total_text_accuracy_wo_decimal = text_accuracy_wo_decimal / self.len_data_loader
+        total_char_similarity = char_similarity / self.len_data_loader
+        total_value_mae = value_mae / self.len_data_loader
+        total_time = round(time.time() - start_time, 2)
         if self.verbosity >= 2:
-            self.logger.info(\
-                'Train: Epoch: {} [{} samples, {} seconds] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+            self.logger.info('Train: Epoch: {} [{} samples, {} seconds] \
+Loss: {:.6f} \
+Det Loss: {:.6f} \
+Rec Loss: {:.6f} \
+Char similarity'.format(
                     epoch,
                     len(self.data_loader.dataset),
                     total_time,
-                    avg_loss, avg_det_loss, avg_rec_loss))
+                    avg_loss, avg_det_loss, avg_rec_loss, total_char_similarity))
 
         log = {
             'loss': avg_loss,
             'det_loss': avg_det_loss,
             'rec_loss': avg_rec_loss,
-            'text_accuracy': text_accuracy / self.len_data_loader,
-            'value_error': value_error / self.len_data_loader,
+            'acc': round(total_text_accuracy, 2),
+            'acc_wo_decimal': round(total_text_accuracy_wo_decimal, 2),
+            'char_similarity': round(total_char_similarity, 2),
+            'value_mae': round(total_value_mae, 2),
             'time': total_time
         }
 
@@ -204,8 +213,7 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         total_loss, total_det_loss, total_rec_loss = 0, 0, 0
-        text_accuracy = 0.0
-        value_error = 0.0
+        text_accuracy, text_accuracy_wo_decimal, char_similarity, value_mae = 0.0, 0.0, 0.0, 0.0
         start_time = time.time()
         with torch.no_grad():
             for batch_idx, gt in enumerate(self.valid_data_loader):
@@ -214,14 +222,14 @@ class Trainer(BaseTrainer):
                     image, score_map = self._to_device(_image.clone(), score_map.clone())
 
                     pred_score_map, pred_recog, pred_boxes, indices = self.model.forward(image_files, image, boxes)
-                    transcriptions = transcriptions[indices]
+                    gt_transcriptions = transcriptions[indices]
                     image_files = np.array(image_files)[indices]
                     image_visual = _image[indices]
                     pred_boxes = pred_boxes[indices]
                     pred_score_map = pred_score_map[indices]
                     score_map = score_map[indices]
 
-                    labels, label_lengths = self.label_converter.encode(transcriptions.tolist())
+                    labels, label_lengths = self.label_converter.encode(gt_transcriptions.tolist())
                     labels = labels.to(self.device)
                     label_lengths = label_lengths.to(self.device)
                     recog = (labels, label_lengths)
@@ -238,7 +246,7 @@ class Trainer(BaseTrainer):
                     pred_transcriptions = np.array(pred_transcriptions)
 
                     if batch_idx == 0:
-                        print('Validation gt transcriptions:', transcriptions)
+                        print('Validation gt transcriptions:', gt_transcriptions)
                         print('Validation pred transcriptions:', pred_transcriptions)
 
                     ## Write summary writer images and text
@@ -249,7 +257,7 @@ class Trainer(BaseTrainer):
                         score_map_grid = torchvision.utils.make_grid(score_map)
                         pred_score_map_grid = torchvision.utils.make_grid(pred_score_map.double())
 
-                        gt_transcriptions_tensor = draw_text_tensor(transcriptions)
+                        gt_transcriptions_tensor = draw_text_tensor(gt_transcriptions)
                         gt_transcriptions_grid = torchvision.utils.make_grid(gt_transcriptions_tensor,
                                 normalize=True, value_range=(0, 1))
 
@@ -270,43 +278,63 @@ class Trainer(BaseTrainer):
                     total_det_loss += detection_loss.item()
                     total_rec_loss += recognition_loss.item()
 
-                    ## Transcripton accuracy
-                    text_accuracy += np.mean(transcriptions == pred_transcriptions)
+                    ## Text accuracy
+                    text_accuracy += np.mean(gt_transcriptions == pred_transcriptions)
 
-                    ## Value error
-                    try:
-                        batch_value_error = 0.0
-                        for tr, pred_tr in zip(transcriptions, pred_transcriptions):
-                            tr1, tr2 = tr.split(',')
-                            tr_value = int(tr1) + int(tr2) / 100.0
-                            pred_tr1, pred_tr2 = pred_tr.split(',')
-                            pred_tr_value = int(pred_tr1) + int(pred_tr2) / 100.0
-                            batch_value_error += abs(tr_value - pred_tr_value) / (tr_value + 1e-10)
-                        value_error += (batch_value_error / len(transcriptions))
-                    except:
-                        value_error += 1.0
+                    ## Text without decimal part accuracy
+                    gt_trans_wo_decimal = np.array(list(map(lambda s: s.split(',')[0], gt_transcriptions))).astype(str)
+                    pred_trans_wo_decimal = np.array(list(map(lambda s: s.split(',')[0], pred_transcriptions))).astype(str)
+                    text_accuracy_wo_decimal += np.mean(gt_trans_wo_decimal == pred_trans_wo_decimal)
+
+                    ## Char accuracy by SequenceMatcher
+                    char_similarity += get_mean_char_similarity(pred_transcriptions, gt_transcriptions)
+
+                    ## Value MSE
+                    gt_transcription_values = np.array(list(map(self.get_transcription_value, gt_transcriptions))).astype(np.float32)
+                    pred_transcription_values = np.array(list(map(self.get_transcription_value, pred_transcriptions))).astype(np.float32)
+                    value_mae += mae(gt_transcription_values, pred_transcription_values)
 
                 except Exception as e:
                     print(e, 'Validation failed')
                     # raise
 
-        total_time = round(time.time() - start_time, 2)
         avg_loss = total_loss / self.len_valid_data_loader
         avg_det_loss = total_det_loss / self.len_valid_data_loader
         avg_rec_loss = total_rec_loss / self.len_valid_data_loader
+        total_text_accuracy = text_accuracy / self.len_valid_data_loader
+        total_text_accuracy_wo_decimal = text_accuracy_wo_decimal / self.len_valid_data_loader
+        total_char_similarity = char_similarity / self.len_valid_data_loader
+        total_value_mae = value_mae / self.len_valid_data_loader
+        total_time = round(time.time() - start_time, 2)
         if self.verbosity >= 2:
-            self.logger.info(\
-                'Val: Epoch: {} [{} samples, {:.2f} seconds] Loss: {:.6f} Detection Loss: {:.6f} Recognition Loss: {:.6f}'.format(
+            self.logger.info('Val: Epoch: {} [{} samples, {:.2f} seconds] \
+Loss: {:.6f} \
+Det Loss: {:.6f} \
+Rec Loss: {:.6f} \
+Char similarity'.format(
                     epoch,
                     len(self.valid_data_loader.dataset),
                     total_time,
-                    avg_loss, avg_det_loss, avg_rec_loss))
+                    avg_loss, avg_det_loss, avg_rec_loss, total_char_similarity))
 
         return {
             'val_loss': avg_loss,
             'val_det_loss': avg_det_loss,
             'val_rec_loss': avg_rec_loss,
-            'val_text_accuracy': text_accuracy / self.len_valid_data_loader,
-            'val_value_error': value_error / self.len_valid_data_loader,
+            'val_acc': total_text_accuracy,
+            'val_acc_wo_decimal': total_text_accuracy_wo_decimal,
+            'val_char_similarity': total_char_similarity,
+            'val_value_mae': total_value_mae,
             'val_time': total_time
         }
+
+    def get_transcription_value(self, text, delimiter=','):
+        if delimiter in text:
+            whole, decimal = text.split(delimiter)[:2]
+        else:
+            whole = int(text)
+            decimal = 0
+        try:
+            return int(whole) + int(decimal) / 100.0
+        except ValueError:
+            return 0

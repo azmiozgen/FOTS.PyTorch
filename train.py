@@ -59,7 +59,7 @@ def main(config_file, resume):
             valid_data_loader=val,
             train_logger=train_logger)
 
-    # trainer.train()
+    trainer.train()
 
 
 if __name__ == '__main__':

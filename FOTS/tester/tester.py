@@ -193,7 +193,7 @@ class Tester(BaseTester):
 
     def get_transcription_value(self, text, delimiter=','):
         if delimiter in text:
-            whole, decimal = text.split(delimiter)
+            whole, decimal = text.split(delimiter)[:2]
         else:
             whole = int(text)
             decimal = 0

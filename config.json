@@ -6,7 +6,7 @@
         "annotation_ext": "json",
         "batch_size": 8,
         "dataset": "price_tag",
-        "data_dirname": "price_tag",
+        "data_dirname": "price_tag_small",
         "image_ext": "jpg",
         "input_size": 256,
         "random_blur_ksize_sigma": [5, 1.0],
@@ -54,7 +54,7 @@
     },
     "arch" : "FOTSModel",
     "model" : {
-        "mode": "recognition",
+        "mode": "united",
         "dice_smooth": 1.0,
         "dropout": 0,
         "recognizer_n_hidden": 256,
