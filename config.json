@@ -56,6 +56,7 @@
     },
     "tester": {
         "batch_size": 128,
+        "epoch_record": 100,
         "save_dir": "output/",
         "verbosity": 2
     },
