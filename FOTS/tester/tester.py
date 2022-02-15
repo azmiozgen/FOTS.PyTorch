@@ -126,10 +126,10 @@ class Tester(BaseTester):
         total_value_mae = value_mae / self.len_data_loader
         total_time = round(time.time() - start_time, 2)
         self.logger.info('Test: [{} samples, {:.2f} seconds]\
-\n\tText accuracy: {:.2f}\
-\n\tText accuracy without decimal: {:.2f}\
-\n\tCharacter similarity: {:.2f}\
-\n\tValue MAE: {:.2f}'.format(
+\n\tText accuracy: {:.4f}\
+\n\tText accuracy without decimal: {:.4f}\
+\n\tCharacter similarity: {:.4f}\
+\n\tValue MAE: {:.4f}'.format(
                 self.dataset_size,
                 total_time,
                 total_text_accuracy,
@@ -139,10 +139,10 @@ class Tester(BaseTester):
 
         result = {
             'size': self.dataset_size,
-            'text_accuracy': round(total_text_accuracy, 2),
-            'text_accuracy_wo_decimal': round(total_text_accuracy_wo_decimal, 2),
-            'char_similarity': round(total_char_similarity, 2),
-            'value_mae': round(total_value_mae, 2),
+            'text_accuracy': round(total_text_accuracy, 4),
+            'text_accuracy_wo_decimal': round(total_text_accuracy_wo_decimal, 4),
+            'char_similarity': round(total_char_similarity, 4),
+            'value_mae': round(total_value_mae, 4),
         }
 
         self.visualize(result, grids, grid_titles)

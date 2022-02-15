@@ -193,10 +193,10 @@ Char similarity {:.2f}'.format(
             'loss': avg_loss,
             'det_loss': avg_det_loss,
             'rec_loss': avg_rec_loss,
-            'acc': round(total_text_accuracy, 2),
-            'acc_wo_decimal': round(total_text_accuracy_wo_decimal, 2),
-            'char_similarity': round(total_char_similarity, 2),
-            'value_mae': round(total_value_mae, 2),
+            'acc': total_text_accuracy,
+            'acc_wo_decimal': total_text_accuracy_wo_decimal,
+            'char_similarity': total_char_similarity,
+            'value_mae': total_value_mae,
             'time': total_time
         }
 

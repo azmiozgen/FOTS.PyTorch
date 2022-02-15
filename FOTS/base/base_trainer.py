@@ -86,13 +86,6 @@ class BaseTrainer:
 
             log = {'epoch': epoch}
             for key, value in result.items():
-                # if key == 'metrics':
-                #     for i, metric in enumerate(self.metrics):
-                #         log[metric.__name__] = result['metrics'][i]
-                # elif key == 'val_metrics':
-                #     for i, metric in enumerate(self.metrics):
-                #         log['val_' + metric.__name__] = result['val_metrics'][i]
-                # else:
                 log[key] = value
 
             if self.train_logger is not None:
@@ -100,9 +93,9 @@ class BaseTrainer:
                 if self.verbosity >= 1:
                     for key, value in log.items():
                         if str(key) == 'epoch':
-                            self.logger.info('    {:15s}: {}'.format(str(key), value))
+                            self.logger.info('\t{:20s}: {}'.format(str(key), value))
                         else:
-                            self.logger.info('    {:15s}: {:.4f}'.format(str(key), value))
+                            self.logger.info('\t{:20s}: {:.4f}'.format(str(key), value))
             if (self.monitor_mode == 'min' and log[self.monitor] < self.monitor_best)\
                     or (self.monitor_mode == 'max' and log[self.monitor] > self.monitor_best):
                 self.monitor_best = log[self.monitor]
@@ -176,12 +169,12 @@ class BaseTrainer:
         arch = type(self.model).__name__
         state = {
             'arch': arch,
+            'config': self.config,
             'epoch': epoch,
             'logger': self.train_logger,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
             'monitor_best': self.monitor_best,
-            'config': self.config
+            'optimizer': self.optimizer.state_dict(),
+            'state_dict': self.model.state_dict()
         }
         filename = os.path.join(self.checkpoint_dir, 'checkpoint-epoch{:03d}-loss-{:.4f}.pth.tar'
                                 .format(epoch, log['loss']))
